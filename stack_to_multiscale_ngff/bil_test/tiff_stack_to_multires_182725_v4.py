@@ -29,13 +29,8 @@ Working with sef-contained delayed frunction, but small number of threads makes 
 2x downsamples only
 '''
 
-path = '/bil/users/awatson/test_conv/BrAinPI/converters'
-    
-if path not in sys.path:
-    sys.path.append(path)
-
-from H5_zarr_store6 import H5Store
-from tiff_manager import tiff_manager, tiff_manager_3d
+from stack_to_multiscale_ngff.h5_shard_store import H5_Shard_Store
+from stack_to_multiscale_ngff.tiff_manager import tiff_manager, tiff_manager_3d
 # from Z:\cbiPythonTools\bil_api\converters\H5_zarr_store3 import H5Store
 
 class builder:
@@ -44,7 +39,7 @@ class builder:
             self,in_location,out_location,fileType='tif',
             geometry=(0.35,0.35,1),origionalChunkSize=(1,1,4,1024,1024),finalChunkSize=(1,1,128,128,128),
             sim_jobs=8, compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
-            zarr_store_type=H5Store, chunk_limit_MB=2048, tmp_dir='/local', build_imediately = False,
+            zarr_store_type=H5_Shard_Store, chunk_limit_MB=2048, tmp_dir='/local', build_imediately = False,
             verbose=False
             ):
                 
@@ -258,10 +253,9 @@ class builder:
         return zarr.open(self.get_store(res))
     
     def get_store(self,res):
-        if self.zarr_store_type == H5Store:
+        if self.zarr_store_type == H5_Shard_Store:
             print('Getting H5Store')
             store = self.zarr_store_type(self.scale_name(res),verbose=self.verbose)
-            # store = H5Store(self.scale_name(res),verbose=2)
         else:
             print('Getting Other Store')
             store = self.zarr_store_type(self.scale_name(res))
@@ -440,10 +434,10 @@ class builder:
         return self.dtype_convert(canvas)
     
     
-    def fast_mean_3d_downsample(self,from_path,to_path,info,store=H5Store):
-        if store == H5Store:
-            # zstore = store(from_path, verbose=2)
-            zstore = H5Store(from_path, verbose=self.verbose)
+    def fast_mean_3d_downsample(self,from_path,to_path,info,store=H5_Shard_Store):
+        if store == H5_Shard_Store:
+            zstore = store(from_path, verbose=self.verbose)
+            # zstore = H5Store(from_path, verbose=self.verbose)
         else:
             zstore = store(from_path)
         
@@ -471,9 +465,9 @@ class builder:
         
         
         # print('Preparing to write')
-        if store == H5Store:
-            # zstore = store(to_path, verbose=2)
-            zstore = H5Store(to_path, verbose=self.verbose)
+        if store == H5_Shard_Store:
+            zstore = store(to_path, verbose=self.verbose)
+            # zstore = H5Store(to_path, verbose=self.verbose)
         else:
             zstore = store(to_path)
         
@@ -581,13 +575,11 @@ if __name__ == '__main__':
         with Client(n_workers=workers,threads_per_worker=threads) as client:
             
             mr.write_resolution_series(client)
-            # mr.write_resolution(2,client)
-            # mr.write_resolution(3,client)
-            # mr.write_resolution(4,client)
-            # mr.write_resolution(5,client)
-            # mr.write_resolution(6,client)
+
     stop = time.time()
     print((stop - start)/60/60)
+    
+    sys.exit(0)
     
 ## https://download.brainimagelibrary.org/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
 ## /bil/data/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
