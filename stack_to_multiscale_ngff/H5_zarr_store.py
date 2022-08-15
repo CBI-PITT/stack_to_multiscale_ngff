@@ -6,20 +6,31 @@ Created on Tue Jul 19 10:29:42 2022
 """
 
 '''
-Attempt at creating a custom HDF5 zarr data store (similar to ZIP store)
-but implemented in a directory store-like structure to limit the number of files
-per directory
+A Zarr store that uses HDF5 as a containiner to shard chunks accross a single
+axis.  The store is implemented similar to a directory store 
+but on axis[-3] HDF5 files are written which contain
+chunks cooresponding to the remainining axes.  If the shape of the 
+the array are less than 3 axdes, the shards will be accross axis0
 
-WORKS WITH MULTISCALE_SPATIAL_IMAGE PACKAGE
+Example:
+    array.shape = (1,1,200,10000,10000)
+    /root/of/array/.zarray
+    #Sharded h5 container at axis[-3]
+    /root/of/array/0/0/4.hf
+    
+    4.hf contents:
+        key:value
+        0.0:bit-string
+        0.1:bit-string
+        4.6:bit-string
+        ...
+        ...
 '''
 
 
 import os
-import zarr
 import h5py
-import numpy as np
 import shutil
-import errno
 import time
 
 from zarr.errors import (
@@ -40,7 +51,6 @@ from numcodecs.compat import (
 # from numcodecs.registry import codec_registry
 
 
-from zarr.meta import encode_array_metadata, encode_group_metadata
 from zarr.util import (buffer_size, json_loads, nolock, normalize_chunks,
                        normalize_dimension_separator,
                        normalize_dtype, normalize_fill_value, normalize_order,
@@ -48,52 +58,16 @@ from zarr.util import (buffer_size, json_loads, nolock, normalize_chunks,
 
 from zarr._storage.absstore import ABSStore  # noqa: F401
 
-from zarr._storage.store import Store, BaseStore
+from zarr._storage.store import Store
 
-
-# file = r'Z:\testData\test.h5'
-
-# # Wrap bytes object in np.void()
-# data = np.void(np.zeros((1024,1024),dtype=np.dtype('uint16')).tobytes())
-
-# # Save each chunk as a dataset
-# with h5py.File(file,'a') as f:
-#     f.create_dataset("0.0", data=data)
-
-# with h5py.File(file,'a') as f:
-#     f.create_dataset("0.1", data=data)
-    
-# # Extract Bytes from h5py
-# with h5py.File(file,'a') as f:
-#     q = f['0.1'][()].tobytes()
-
-# #Delete datasets
-# with h5py.File(file,'a') as f:
-#     del f["0.0"]
-    
-
-# for _ in range(1000):
-#     with h5py.File(file,'a') as f:
-#         print('Create')
-#         f.create_dataset("0.0", data=data)
-#         print('Delete')
-#         del f['0.0']from numcodecs import Blosc
-
-# from numcodecs import Blosc
-# compressor=Blosc(cname='zstd', clevel=8, shuffle=Blosc.BITSHUFFLE)
-
-# store = H5Store(r'Z:\testData\test_h5_store2')
-# z = zarr.zeros((1, 2, 11500, 20000, 20000), chunks=(1,1,256,256,256), store=store, overwrite=True, compressor=compressor)
-# z[0,0,7,0:2000,0:5000] = 42
-
-class H5Store(Store):
+class H5_Shard_Store(Store):
     """
     Storage class the uses HDF5 files to shard chunks accross axis [-3]
     
     Currently, the number of axes in the zarr array must be len(zarr_array) >= 4
     """
 
-    def __init__(self, path, normalize_keys=True, dimension_separator='.',swmr=True,verbose=False):
+    def __init__(self, path, normalize_keys=True,swmr=True,verbose=False):
 
         # guard conditions
         path = os.path.abspath(path)
@@ -102,10 +76,8 @@ class H5Store(Store):
 
         self.path = path
         self.normalize_keys = normalize_keys
-        self._dimension_separator = dimension_separator
-        self.chunk_depth = self._chunk_depth()
         self.swmr=swmr
-        self.verbose = verbose
+        self.verbose = verbose #bool or int >= 1
         self._files = ['.zarray','.zgroup','.zattrs','.zmetadata']
 
     def _normalize_key(self, key):
@@ -179,19 +151,12 @@ class H5Store(Store):
                 time.sleep(0.1)
                 if trys == 500:
                     raise
-                
-    
-    def _chunk_depth(self):
-        return 3
-        chunks = list(self.chunks)
-        while chunks[0] == 1:
-            del chunks[0]
-        return len(chunks)
     
     def _dset_from_dirStoreFilePath(self,key):
         '''
         filepath will include self.path + key ('0.1.2.3.4')
-        
+        Chunks will be sharded along the axis[-3] if the length is >= 3
+        Otherwise chunks are sharded along axis 0.
         '''
         
         dirs, key = os.path.split(key)
@@ -203,19 +168,25 @@ class H5Store(Store):
             return os.path.join(self.path,*dirs,key), None
         
         
-        
         try:
-            dirs_2 = key.split('.')[:-3]
-            dirs = dirs + tuple(dirs_2)
-            fname = key.split('.')[-3]
-            
-            dset = key.split('.')[-2:]
+            splitKey = key.split('.')
+            # if axes are > 3 then the h5 file should be on the 3rd axis
+            # else on axis 0
+            if len(splitKey) > 3:
+                dirs = dirs + tuple(splitKey[:-3])
+                fname = splitKey[-3]
+                key = '.'.join(splitKey[-2:])
+            else:
+                fname = splitKey[0]
+                if len(splitKey)==1:
+                    key = splitKey[0]
+                else:
+                    key = '.'.join(splitKey[1:])
             
             h5_file = os.path.join(self.path,*dirs,fname + '.h5')
-            dset = '.'.join(dset)
             
             # print(h5_file)
-            return h5_file, dset
+            return h5_file, key
         except:
             return os.path.join(self.path,*dirs,key), None
     
@@ -371,7 +342,8 @@ class H5Store(Store):
         except:
             pass
                 
-        print('Not Here')
+        if self.verbose == 2:
+            print('Store does not contain {}'.format(key))
         return False
     
     def __enter__(self):
@@ -473,102 +445,3 @@ class H5Store(Store):
             print('__len__')
         return sum((1 for _ in self._keys_num_estimate()))
 
-#     def dir_path(self, path=None):
-#         store_path = normalize_storage_path(path)
-#         dir_path = self.path
-#         if store_path:
-#             dir_path = os.path.join(dir_path, store_path)
-#         return dir_path
-
-#     def listdir(self, path=None):
-#         return self._nested_listdir(path) if self._dimension_separator == "/" else \
-#             self._flat_listdir(path)
-
-#     def _flat_listdir(self, path=None):
-#         dir_path = self.dir_path(path)
-#         if os.path.isdir(dir_path):
-#             return sorted(os.listdir(dir_path))
-#         else:
-#             return []
-
-#     def _nested_listdir(self, path=None):
-#         children = self._flat_listdir(path=path)
-#         if array_meta_key in children:
-#             # special handling of directories containing an array to map nested chunk
-#             # keys back to standard chunk keys
-#             new_children = []
-#             root_path = self.dir_path(path)
-#             for entry in children:
-#                 entry_path = os.path.join(root_path, entry)
-#                 if _prog_number.match(entry) and os.path.isdir(entry_path):
-#                     for dir_path, _, file_names in os.walk(entry_path):
-#                         for file_name in file_names:
-#                             file_path = os.path.join(dir_path, file_name)
-#                             rel_path = file_path.split(root_path + os.path.sep)[1]
-#                             new_children.append(rel_path.replace(os.path.sep, '.'))
-#                 else:
-#                     new_children.append(entry)
-#             return sorted(new_children)
-#         else:
-#             return children
-
-#     def rename(self, src_path, dst_path):
-#         store_src_path = normalize_storage_path(src_path)
-#         store_dst_path = normalize_storage_path(dst_path)
-
-#         dir_path = self.path
-
-#         src_path = os.path.join(dir_path, store_src_path)
-#         dst_path = os.path.join(dir_path, store_dst_path)
-
-#         os.renames(src_path, dst_path)
-
-#     def rmdir(self, path=None):
-#         store_path = normalize_storage_path(path)
-#         dir_path = self.path
-#         if store_path:
-#             dir_path = os.path.join(dir_path, store_path)
-#         if os.path.isdir(dir_path):
-#             shutil.rmtree(dir_path)
-
-#     def getsize(self, path=None):
-#         store_path = normalize_storage_path(path)
-#         fs_path = self.path
-#         if store_path:
-#             fs_path = os.path.join(fs_path, store_path)
-#         if os.path.isfile(fs_path):
-#             return os.path.getsize(fs_path)
-#         elif os.path.isdir(fs_path):
-#             size = 0
-#             for child in scandir(fs_path):
-#                 if child.is_file():
-#                     size += child.stat().st_size
-#             return size
-#         else:
-#             return 0
-
-#     def clear(self):
-#         shutil.rmtree(self.path)
-
-
-# def atexit_rmtree(path,
-#                   isdir=os.path.isdir,
-#                   rmtree=shutil.rmtree):  # pragma: no cover
-#     """Ensure directory removal at interpreter exit."""
-#     if isdir(path):
-#         rmtree(path)
-
-
-# # noinspection PyShadowingNames
-# def atexit_rmglob(path,
-#                   glob=glob.glob,
-#                   isdir=os.path.isdir,
-#                   isfile=os.path.isfile,
-#                   remove=os.remove,
-#                   rmtree=shutil.rmtree):  # pragma: no cover
-#     """Ensure removal of multiple files at interpreter exit."""
-#     for p in glob(path):
-#         if isfile(p):
-#             remove(p)
-#         elif isdir(p):
-#             rmtree(p)
