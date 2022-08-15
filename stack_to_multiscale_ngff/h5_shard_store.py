@@ -157,6 +157,7 @@ class H5_Shard_Store(Store):
         filepath will include self.path + key ('0.1.2.3.4')
         Chunks will be sharded along the axis[-3] if the length is >= 3
         Otherwise chunks are sharded along axis 0.
+        Key stored in the h5 file is the full key for each chunk ('0.1.2.3.4')
         '''
         
         dirs, key = os.path.split(key)
@@ -175,13 +176,8 @@ class H5_Shard_Store(Store):
             if len(splitKey) > 3:
                 dirs = dirs + tuple(splitKey[:-3])
                 fname = splitKey[-3]
-                key = '.'.join(splitKey[-2:])
             else:
                 fname = splitKey[0]
-                if len(splitKey)==1:
-                    key = splitKey[0]
-                else:
-                    key = '.'.join(splitKey[1:])
             
             h5_file = os.path.join(self.path,*dirs,fname + '.h5')
             
