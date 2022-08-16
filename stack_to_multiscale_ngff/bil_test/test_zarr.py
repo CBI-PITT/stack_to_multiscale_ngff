@@ -13,8 +13,10 @@ path = r'C:\code\stack_to_multiscale_ngff\stack_to_multiscale_ngff'
 if path not in sys.path:
     sys.path.append(path)
     
-from h5_shard_store import H5_Shard_Store as h5s
+from stack_to_multiscale_ngff.h5_shard_store import H5_Shard_Store as h5s
 
 
 root = 'c:/code/testZarr'
+
+root = r'Z:\testData\test_zarr'
 
