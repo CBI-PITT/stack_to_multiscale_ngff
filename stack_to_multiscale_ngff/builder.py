@@ -44,8 +44,8 @@ class builder:
             self,in_location,out_location,fileType='tif',
             geometry=(1,0.35,0.35),origionalChunkSize=(1,1,4,1024,1024),finalChunkSize=(1,1,128,128,128),
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
-            compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
-            zarr_store_type=H5_Shard_Store, chunk_limit_GB=2, tmp_dir='/local',
+            compressor=Blosc(cname='zstd', clevel=1, shuffle=Blosc.BITSHUFFLE),
+            zarr_store_type=H5_Shard_Store, tmp_dir='/local',
             verbose=False, performance_report=True
             ):
                 
@@ -61,14 +61,13 @@ class builder:
         self.mem = mem
         self.compressor = compressor
         self.zarr_store_type = zarr_store_type
-        self.chunk_limit_GB = chunk_limit_GB
         self.tmp_dir = tmp_dir
         self.store_ext = 'h5'
         self.verbose = verbose
         self.performance_report = performance_report
         
-        self.res0_chunk_limit_GB = int(self.mem / self.cpu_cores) / 2 #Fudge factor for maximizing data being processed with available memory
-        self.res_chunk_limit_GB = int(self.mem / self.cpu_cores / 4)
+        self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
+        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 1.5 #Fudge factor for maximizing data being processed with available memory during downsample phase
         
         # Makes store location and initial group
         # do not make a class attribute because it may not pickle when computing over dask
@@ -528,6 +527,68 @@ class builder:
         return
     
     
+    def determine_chunks_size_for_downsample(self,res):
+        
+        new_chunks = (self.pyramidMap[res][1])
+        single_chunk_size = math.prod(new_chunks)
+        
+        if self.dtype == np.dtype('uint8'):
+            factor = 1
+        elif self.dtype == np.dtype('uint16'):
+            factor = 2
+        elif self.dtype == np.dtype('float32'):
+            factor = 4
+        elif self.dtype == float:
+            factor = 8
+            
+            
+        z = y = x = 1
+        chunk_size = overlap_size = 0
+        while True:
+            
+            if (chunk_size + overlap_size)/1024**3*factor > self.res_chunk_limit_GB:
+                break
+            
+            z+=1
+            cz = new_chunks[0]*z
+            cy = new_chunks[1]*y
+            cx = new_chunks[2]*x
+            
+            chunk_size = math.prod((cz,cy,cx))
+            overlap_size = 2*single_chunk_size*y*z + 2*single_chunk_size*x*z + 2*single_chunk_size*x*y
+            
+            if (chunk_size + overlap_size)/1024**3*factor > self.res_chunk_limit_GB:
+                z-=1
+                break
+            
+            y+=1
+            cz = new_chunks[0]*z
+            cy = new_chunks[1]*y
+            cx = new_chunks[2]*x
+            
+            chunk_size = math.prod((cz,cy,cx))
+            overlap_size = 2*single_chunk_size*y*z + 2*single_chunk_size*x*z + 2*single_chunk_size*x*y
+            
+            if (chunk_size + overlap_size)/1024**3*factor > self.res_chunk_limit_GB:
+                y-=1
+                break
+            
+            x+=1
+            cz = new_chunks[0]*z
+            cy = new_chunks[1]*y
+            cx = new_chunks[2]*x
+            
+            chunk_size = math.prod((cz,cy,cx))
+            overlap_size = 2*single_chunk_size*y*z + 2*single_chunk_size*x*z + 2*single_chunk_size*x*y
+            
+            if (chunk_size + overlap_size)/1024**3*factor > self.res_chunk_limit_GB:
+                x-=1
+                break
+        
+        return z,y,x
+        
+        
+    
     def down_samp(self,res,client):
         
         out_location = self.scale_name(res)
@@ -555,9 +616,10 @@ class builder:
         # Currently hardcoded - works well for 32core, 512GB RAM
         # 4^3 is the break even point for surface area == volume
         # Higher numbers are better to limt io
-        z_depth = new_chunks[-3] * 8
-        y_depth = new_chunks[-2] * 8
-        x_depth = new_chunks[-1] * 8
+        zz,yy,xx = self.determine_chunks_size_for_downsample(res)
+        z_depth = new_chunks[-3] * zz
+        y_depth = new_chunks[-2] * yy
+        x_depth = new_chunks[-1] * xx
         # print(z_depth)
         for t in range(self.TimePoints):
             for c in range(self.Channels):
@@ -715,7 +777,7 @@ if __name__ == '__main__':
     
     in_location = '/CBI_Hive/globus/pitt/bil/TEST'
     
-    out_location = '/CBI_FastStore/testData/test_zarr'
+    out_location = '/CBI_FastStore/testData/test_zarr2'
         
     
     # mr = builder(in_location,out_location,tmp_dir='/bil/users/awatson/test_conv/tmp')
@@ -724,22 +786,23 @@ if __name__ == '__main__':
     
     # # 4 workers per core = 20 workers with lnode of 80 cores
     # # 4 Threads per workers
-    # with dask.config.set({'temporary_directory': mr.tmp_dir}):
+    with dask.config.set({'temporary_directory': mr.tmp_dir}):
             
-    #     # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
-    #     # with Client(n_workers=8,threads_per_worker=2) as client:
-    #     workers = mr.workers
-    #     threads = mr.sim_jobs
-    #     print('workers {}, threads {}, mem {}, chunk_size_limit {}'.format(workers, threads, mr.mem, mr.res0_chunk_limit_GB))
-    #     # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
-    #     with Client(n_workers=workers,threads_per_worker=threads) as client:
+        # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
+        # with Client(n_workers=8,threads_per_worker=2) as client:
+        workers = mr.workers
+        threads = mr.sim_jobs
+        print('workers {}, threads {}, mem {}, chunk_size_limit {}'.format(workers, threads, mr.mem, mr.res0_chunk_limit_GB))
+        # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
+        with Client(n_workers=workers,threads_per_worker=threads) as client:
             
-    #         mr.write_resolution_series(client)
+            # mr.write_resolution_series(client)
+            mr.down_samp(1,client)
 
-    # stop = time.time()
-    # print((stop - start)/60/60)
+    stop = time.time()
+    print((stop - start)/60/60)
     
-    # sys.exit(0)
+    sys.exit(0)
     
 ## https://download.brainimagelibrary.org/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
 ## /bil/data/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
