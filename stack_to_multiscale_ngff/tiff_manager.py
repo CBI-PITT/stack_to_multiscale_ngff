@@ -12,6 +12,7 @@ import tifffile
 from copy import deepcopy
 import dask
 from dask.delayed import delayed
+import imagecodecs
 
 
 file = r'C:\code\testData\191817_05308_CH1.tif'

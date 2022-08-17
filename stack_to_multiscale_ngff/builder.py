@@ -14,9 +14,10 @@ from skimage import io, img_as_float32, img_as_float64, img_as_uint, img_as_ubyt
 # from skimage.transform import rescale, downscale_local_mean
 from skimage.filters import gaussian
 from numcodecs import Blosc
-from distributed import Client
+from distributed import Client, progress, performance_report
 from contextlib import contextmanager
 from itertools import product
+import psutil
 
 # import h5py
 # import hdf5plugin
@@ -33,14 +34,19 @@ from stack_to_multiscale_ngff.h5_shard_store import H5_Shard_Store
 from stack_to_multiscale_ngff.tiff_manager import tiff_manager, tiff_manager_3d
 # from Z:\cbiPythonTools\bil_api\converters\H5_zarr_store3 import H5Store
 
+# Note that attempts to determine the amount of free mem does not work for SLURM allocation
+# This parameter must be set manually when submitting jobs to reduce the risk of overrunning
+# RAM allocation
+
 class builder:
     
     def __init__(
             self,in_location,out_location,fileType='tif',
             geometry=(0.35,0.35,1),origionalChunkSize=(1,1,4,1024,1024),finalChunkSize=(1,1,128,128,128),
-            sim_jobs=8, compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
-            zarr_store_type=H5_Shard_Store, chunk_limit_MB=2048, tmp_dir='/local', build_imediately = False,
-            verbose=False
+            cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
+            compressor=Blosc(cname='zstd', clevel=1, shuffle=Blosc.BITSHUFFLE),
+            zarr_store_type=H5_Shard_Store, chunk_limit_GB=2, tmp_dir='/local',
+            verbose=False, performance_report=True
             ):
                 
         self.in_location = in_location
@@ -49,23 +55,43 @@ class builder:
         self.geometry = geometry
         self.origionalChunkSize = origionalChunkSize
         self.finalChunkSize = finalChunkSize
+        self.cpu_cores = cpu_cores
         self.sim_jobs = sim_jobs
+        self.workers = int(self.cpu_cores / self.sim_jobs)
+        self.mem = mem
         self.compressor = compressor
         self.zarr_store_type = zarr_store_type
-        self.chunk_limit_MB = chunk_limit_MB
+        self.chunk_limit_GB = chunk_limit_GB
         self.tmp_dir = tmp_dir
         self.store_ext = 'h5'
         self.verbose = verbose
+        self.performance_report = performance_report
         
-        os.makedirs(self.out_location,exist_ok=True)
+        self.res0_chunk_limit_GB = int(self.mem / self.cpu_cores) / 2 #Fudge factor for maximizing data being processed with available memory
+        self.res_chunk_limit_GB = int(self.mem / self.cpu_cores / 4)
+        
+        # Makes store location and initial group
+        # do not make a class attribute because it may not pickle when computing over dask
+        if self.zarr_store_type == H5_Shard_Store:
+            store = self.zarr_store_type(self.out_location,verbose=self.verbose)
+        else:
+            store = self.zarr_store_type(self.out_location)
+        store = zarr.open(store)
+        del store
+        
+        
+        
+        # os.makedirs(self.out_location,exist_ok=True)
         
         ##  LIST ALL FILES TO BE CONVERTED  ##
-        ## Assume files are laid out as "color_dir/images"
         filesList = []
         if isinstance(self.in_location,(list,tuple)):
+            # Can designate each directory with image files
             for ii in self.in_location:
                 filesList.append(sorted(glob.glob(os.path.join(ii,'*.{}'.format(self.fileType)))))
         else:
+            # Will find nested directories with image files
+            ## Assume files are laid out as "color_dir/images"
             for ii in sorted(glob.glob(os.path.join(self.in_location,'*'))):
                 filesList.append(sorted(glob.glob(os.path.join(ii,'*.{}'.format(self.fileType)))))
         
@@ -90,22 +116,6 @@ class builder:
         
         self.pyramidMap = self.imagePyramidNum()
         
-        # if build_imediately:
-        #     with dask.config.set({'temporary_directory': self.tmp_dir}):
-                
-        #         # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
-        #         # with Client(n_workers=8,threads_per_worker=2) as client:
-        #         with Client(n_workers=self.sim_jobs,threads_per_worker=1) as client:
-        #             self.write_resolution_series(client)
-        
-        # if build_imediately:
-        #     with dask.config.set({'temporary_directory': self.tmp_dir}):
-                
-        #         # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
-        #         # with Client(n_workers=8,threads_per_worker=2) as client:
-        #         with Client(n_workers=self.sim_jobs,threads_per_worker=1) as client:
-        #                 self.write_resolution(1,client)
-        
     @staticmethod
     def organize_by_groups(a_list,group_len):
 
@@ -125,20 +135,39 @@ class builder:
             new.append(working)
         return new
 
-    @staticmethod
-    def determine_read_depth(storage_chunks,num_workers,z_plane_shape,chunk_limit_MB=1024,cpu_number=os.cpu_count()):
+    def determine_read_depth(self,storage_chunks,num_workers,z_plane_shape,chunk_limit_GB=1,cpu_number=os.cpu_count()):
         chunk_depth = storage_chunks[3]
         current_chunks = (storage_chunks[0],storage_chunks[1],storage_chunks[2],chunk_depth,z_plane_shape[1])
-        current_size = math.prod(current_chunks)*2/1024/1024
+        current_size = math.prod(current_chunks)/1024**3
+        print(current_size)
+        if self.dtype == np.dtype('uint8'):
+            pass
+        elif self.dtype == np.dtype('uint16'):
+            current_size *=2
+        elif self.dtype == np.dtype('float32'):
+            current_size *=4
+        elif self.dtype == float:
+            current_size *=8
         
-        if current_size >= chunk_limit_MB:
+        print(current_size)
+        if current_size >= chunk_limit_GB:
+            print('Bigger than chunk limit {}'.format(current_size))
             return chunk_depth
         
-        while current_size <= chunk_limit_MB:
+        while current_size <= chunk_limit_GB:
             chunk_depth += storage_chunks[3]
             current_chunks = (storage_chunks[0],storage_chunks[1],storage_chunks[2],chunk_depth,z_plane_shape[1])
-            current_size = math.prod(current_chunks)*2/1024/1024
+            current_size = math.prod(current_chunks)/1024**3
+            if self.dtype == np.dtype('uint8'):
+                pass
+            elif self.dtype == np.dtype('uint16'):
+                current_size *=2
+            elif self.dtype == np.dtype('float32'):
+                current_size *=4
+            elif self.dtype == float:
+                current_size *=8
             
+            print('next step chunk limit {}'.format(current_size))
             if chunk_depth >= z_plane_shape[0]:
                 chunk_depth = z_plane_shape[0]
                 break
@@ -173,10 +202,12 @@ class builder:
         '''
         out_shape = self.shape_3d
         chunk = self.origionalChunkSize[2:]
+        
         pyramidMap = {0:[out_shape,chunk]}
         
         chunk_change = (4,0.5,0.5)
-        final_chunk_size = (128,128,128)
+        final_chunk_size = self.finalChunkSize[2:]
+        
         
         current_pyramid_level = 0
         print((out_shape,chunk))
@@ -266,7 +297,6 @@ class builder:
         name = os.path.join(self.out_location,'scale{}'.format(res))
         print(name)
         return name
-        
     
     @staticmethod
     def smooth(image):
@@ -296,7 +326,7 @@ class builder:
             chunk_depth = self.determine_read_depth(self.origionalChunkSize,
                                                     num_workers=self.sim_jobs,
                                                     z_plane_shape=test_image.shape,
-                                                    chunk_limit_MB=self.chunk_limit_MB)
+                                                    chunk_limit_GB=self.res0_chunk_limit_GB)
             test_image = tiff_manager_3d(s[0],desired_chunk_depth_y=chunk_depth)
             print(test_image.shape)
             print(test_image.chunks)
@@ -327,7 +357,17 @@ class builder:
         z = zarr.zeros(stack.shape, chunks=self.origionalChunkSize, store=store, overwrite=True, compressor=self.compressor,dtype=stack.dtype)
         
         # print(client.run(lambda: os.environ["HDF5_USE_FILE_LOCKING"]))
-        da.store(stack,z,lock=False)
+        if self.performance_report:
+            with performance_report(filename=os.path.join(self.out_location,'performance_res_0.html')):
+                to_store = da.store(stack,z,lock=False, compute=False)
+                to_store = client.compute(to_store)
+                progress(to_store)
+                to_store = client.gather(to_store)
+        else:
+            to_store = da.store(stack,z,lock=False, compute=False)
+            to_store = client.compute(to_store)
+            progress(to_store)
+            to_store = client.gather(to_store)
     
     @staticmethod
     def overlap_helper(start_idx, max_shape, read_len, overlap):
@@ -543,8 +583,17 @@ class builder:
                             print('{},{},{},{},{}'.format(t,c,z,y,x))
                             to_run.append(working)
             
-        future = client.compute(to_run)
-        future = client.gather(future)
+        if self.performance_report:
+            with performance_report(filename=os.path.join(self.out_location,'performance_res_{}.html'.format(res))):
+                future = client.compute(to_run)
+                progress(future)
+                future = client.gather(future)
+        else:
+            future = client.compute(to_run)
+            progress(future)
+            future = client.gather(future)
+        
+        
         
         return
 
@@ -553,16 +602,17 @@ if __name__ == '__main__':
     start = time.time()
     
     
-    in_location = [
-        '/bil/data/df/75/df75626840c76c15/mouseID_367667-18052/Green/montage',
-        '/bil/data/df/75/df75626840c76c15/mouseID_367667-18052/Red/montage'
-        ]
+    in_location = 'h:/globus/pitt/bil/TEST'
     
-    out_location = '/bil/users/awatson/conv/df75626840c76c15'
+    out_location = 'z:/testData/test_zarr'
+    
+    in_location = '/CBI_Hive/globus/pitt/bil/TEST'
+    
+    out_location = '/CBI_FastStore/testData/test_zarr'
         
     
     # mr = builder(in_location,out_location,tmp_dir='/bil/users/awatson/test_conv/tmp')
-    mr = builder(in_location,out_location,tmp_dir='/local')
+    mr = builder(in_location,out_location,tmp_dir='z:/tmp_dask')
     
     
     # 4 workers per core = 20 workers with lnode of 80 cores
@@ -571,8 +621,9 @@ if __name__ == '__main__':
             
         # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
         # with Client(n_workers=8,threads_per_worker=2) as client:
-        workers = 20
-        threads = 4
+        workers = mr.workers
+        threads = mr.sim_jobs
+        print('workers {}, threads {}, mem {}, chunk_size_limit {}'.format(workers, threads, mr.mem, mr.res0_chunk_limit_GB))
         # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
         with Client(n_workers=workers,threads_per_worker=threads) as client:
             
@@ -581,7 +632,7 @@ if __name__ == '__main__':
     stop = time.time()
     print((stop - start)/60/60)
     
-    sys.exit(0)
+    # sys.exit(0)
     
 ## https://download.brainimagelibrary.org/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
 ## /bil/data/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
