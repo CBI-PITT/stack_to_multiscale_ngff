@@ -42,9 +42,9 @@ class builder:
     
     def __init__(
             self,in_location,out_location,fileType='tif',
-            geometry=(0.35,0.35,1),origionalChunkSize=(1,1,4,1024,1024),finalChunkSize=(1,1,128,128,128),
+            geometry=(1,0.35,0.35),origionalChunkSize=(1,1,4,1024,1024),finalChunkSize=(1,1,128,128,128),
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
-            compressor=Blosc(cname='zstd', clevel=1, shuffle=Blosc.BITSHUFFLE),
+            compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
             zarr_store_type=H5_Shard_Store, chunk_limit_GB=2, tmp_dir='/local',
             verbose=False, performance_report=True
             ):
@@ -602,8 +602,9 @@ class builder:
     
     def build_zattrs(self):
         
-        store = self.zarr_store_type(self.in_location)
+        store = self.zarr_store_type(self.out_location,verbose=1)
         r = zarr.open(store)
+        print(r)
         
         multiscales = {}
         multiscales["version"] = "0.5-dev"
@@ -624,7 +625,7 @@ class builder:
             scale["coordinateTransformations"] = [{
                 "type": "scale",
                 "scale": [
-                    1.0, 1.0,
+                    1, 1,
                     round(self.geometry[0]*(res+1)**2,3),
                     round(self.geometry[1]*(res+1)**2,3),
                     round(self.geometry[2]*(res+1)**2,3)
@@ -635,18 +636,18 @@ class builder:
 
         multiscales["datasets"] = datasets
 
-        coordinateTransformations = [{
-                        # the time unit (0.1 milliseconds), which is the same for each scale level
-                        "type": "scale",
-                        "scale": [
-                            1.0, 1.0, 
-                            round(self.geometry[0],3),
-                            round(self.geometry[1],3),
-                            round(self.geometry[2],3)
-                            ]
-                    }]
+        # coordinateTransformations = [{
+        #                 # the time unit (0.1 milliseconds), which is the same for each scale level
+        #                 "type": "scale",
+        #                 "scale": [
+        #                     1.0, 1.0, 
+        #                     round(self.geometry[0],3),
+        #                     round(self.geometry[1],3),
+        #                     round(self.geometry[2],3)
+        #                     ]
+        #             }]
 
-        multiscales["coordinateTransformations"] = coordinateTransformations
+        # multiscales["coordinateTransformations"] = coordinateTransformations
 
         multiscales["type"] = 'mean'
 
@@ -656,6 +657,7 @@ class builder:
                         "details": "here"
                     }
 
+        
         r.attrs['multiscales'] = [multiscales]
 
         omero = {}
@@ -720,22 +722,22 @@ if __name__ == '__main__':
     mr = builder(in_location,out_location,tmp_dir='z:/tmp_dask')
     
     
-    # 4 workers per core = 20 workers with lnode of 80 cores
-    # 4 Threads per workers
-    with dask.config.set({'temporary_directory': mr.tmp_dir}):
+    # # 4 workers per core = 20 workers with lnode of 80 cores
+    # # 4 Threads per workers
+    # with dask.config.set({'temporary_directory': mr.tmp_dir}):
             
-        # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
-        # with Client(n_workers=8,threads_per_worker=2) as client:
-        workers = mr.workers
-        threads = mr.sim_jobs
-        print('workers {}, threads {}, mem {}, chunk_size_limit {}'.format(workers, threads, mr.mem, mr.res0_chunk_limit_GB))
-        # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
-        with Client(n_workers=workers,threads_per_worker=threads) as client:
+    #     # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
+    #     # with Client(n_workers=8,threads_per_worker=2) as client:
+    #     workers = mr.workers
+    #     threads = mr.sim_jobs
+    #     print('workers {}, threads {}, mem {}, chunk_size_limit {}'.format(workers, threads, mr.mem, mr.res0_chunk_limit_GB))
+    #     # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
+    #     with Client(n_workers=workers,threads_per_worker=threads) as client:
             
-            mr.write_resolution_series(client)
+    #         mr.write_resolution_series(client)
 
-    stop = time.time()
-    print((stop - start)/60/60)
+    # stop = time.time()
+    # print((stop - start)/60/60)
     
     # sys.exit(0)
     
