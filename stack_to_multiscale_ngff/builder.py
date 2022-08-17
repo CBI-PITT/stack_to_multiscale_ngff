@@ -116,6 +116,8 @@ class builder:
         
         self.pyramidMap = self.imagePyramidNum()
         
+        self.build_zattrs()
+        
     @staticmethod
     def organize_by_groups(a_list,group_len):
 
@@ -594,6 +596,109 @@ class builder:
             future = client.gather(future)
         
         
+        
+        return
+    
+    
+    def build_zattrs(self):
+        
+        store = self.zarr_store_type(self.in_location)
+        r = zarr.open(store)
+        
+        multiscales = {}
+        multiscales["version"] = "0.5-dev"
+        multiscales["name"] = os.path.split(self.in_location)[1]
+        multiscales["axes"] = [
+            {"name": "t", "type": "time", "unit": "millisecond"},
+            {"name": "c", "type": "channel"},
+            {"name": "z", "type": "space", "unit": "micrometer"},
+            {"name": "y", "type": "space", "unit": "micrometer"},
+            {"name": "x", "type": "space", "unit": "micrometer"}
+            ]
+
+
+        datasets = [] 
+        for res in self.pyramidMap:
+            scale = {}
+            scale["path"] = 'scale{}'.format(res)
+            scale["coordinateTransformations"] = [{
+                "type": "scale",
+                "scale": [
+                    1.0, 1.0,
+                    round(self.geometry[0]*(res+1)**2,3),
+                    round(self.geometry[1]*(res+1)**2,3),
+                    round(self.geometry[2]*(res+1)**2,3)
+                    ]
+                }]
+            
+            datasets.append(scale)
+
+        multiscales["datasets"] = datasets
+
+        coordinateTransformations = [{
+                        # the time unit (0.1 milliseconds), which is the same for each scale level
+                        "type": "scale",
+                        "scale": [
+                            1.0, 1.0, 
+                            round(self.geometry[0],3),
+                            round(self.geometry[1],3),
+                            round(self.geometry[2],3)
+                            ]
+                    }]
+
+        multiscales["coordinateTransformations"] = coordinateTransformations
+
+        multiscales["type"] = 'mean'
+
+        multiscales["metadata"] = {
+                        "description": "local mean",
+                        "any": "other",
+                        "details": "here"
+                    }
+
+        r.attrs['multiscales'] = [multiscales]
+
+        omero = {}
+        omero['id'] = 1
+        omero['name'] = os.path.split(self.in_location)[1]
+        omero['version'] = "0.5-dev"
+
+        colors = [
+            'FF0000',
+            '00FF00',
+            'FF0000',
+            'FF00FF'
+            ]
+        colors = colors*self.Channels
+        colors = colors[:self.Channels]
+
+        channels = []
+        for chn,clr in zip(range(self.Channels),colors):
+            new = {}
+            new["active"] = True
+            new["coefficient"] = 1
+            new["color"] = clr
+            new["family"] = "linear"
+            new['inverted'] = False
+            new['label'] = "Channel{}".format(chn)
+            new['window'] = {
+                "end": 65535, #Get max value of a low resolution series
+                "max": 65535, #base on dtype
+                "min": 0, #base on dtype
+                "start": 0 #Get min value of a low resolution series
+                }
+            
+            channels.append(new)
+            
+        omero['channels'] = channels
+        
+        omero['rdefs'] = {
+            "defaultT": 0,                    # First timepoint to show the user
+            "defaultZ": self.shape[2]//2,     # First Z section to show the user
+            "model": "color"                  # "color" or "greyscale"
+            }
+        
+        r.attrs['omero'] = omero
         
         return
 
