@@ -32,6 +32,7 @@ Working with sef-contained delayed frunction, but small number of threads makes 
 
 from stack_to_multiscale_ngff.h5_shard_store import H5_Shard_Store
 from stack_to_multiscale_ngff.tiff_manager import tiff_manager, tiff_manager_3d
+from stack_to_multiscale_ngff.arg_parser import parser
 # from Z:\cbiPythonTools\bil_api\converters\H5_zarr_store3 import H5Store
 
 # Note that attempts to determine the amount of free mem does not work for SLURM allocation
@@ -44,7 +45,7 @@ class builder:
             self,in_location,out_location,fileType='tif',
             geometry=(1,0.35,0.35),origionalChunkSize=(1,1,4,1024,1024),finalChunkSize=(1,1,128,128,128),
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
-            compressor=Blosc(cname='zstd', clevel=1, shuffle=Blosc.BITSHUFFLE),
+            compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
             zarr_store_type=H5_Shard_Store, tmp_dir='/local',
             verbose=False, performance_report=True
             ):
@@ -52,9 +53,9 @@ class builder:
         self.in_location = in_location
         self.out_location = out_location
         self.fileType = fileType
-        self.geometry = geometry
-        self.origionalChunkSize = origionalChunkSize
-        self.finalChunkSize = finalChunkSize
+        self.geometry = tuple(geometry)
+        self.origionalChunkSize = tuple(origionalChunkSize)
+        self.finalChunkSize = tuple(finalChunkSize)
         self.cpu_cores = cpu_cores
         self.sim_jobs = sim_jobs
         self.workers = int(self.cpu_cores / self.sim_jobs)
@@ -770,18 +771,46 @@ if __name__ == '__main__':
     
     start = time.time()
     
+    args = parser.parse_args()
+    print(args)
+    in_location = args.input[0]
+    out_location = args.output[0]
     
-    in_location = 'h:/globus/pitt/bil/TEST'
+    origionalChunkSize = args.origionalChunkSize
+    finalChunkSize = args.finalChunkSize
+    cpu = args.cpu[0]
+    mem = args.mem[0]
+    verbose = args.verbose
+    tmp_dir = args.tmpLocation
+    fileType = args.fileType
+    geometry = args.geometry
     
-    out_location = 'z:/testData/test_zarr'
+    compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
     
-    in_location = '/CBI_Hive/globus/pitt/bil/TEST'
     
-    out_location = '/CBI_FastStore/testData/test_zarr2'
+    mr = builder(in_location, out_location, fileType=fileType, 
+            geometry=geometry,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
+            cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor)
+    
+    
+
+    
+    
+    # print(in_location)
+    # print(out_location)
+    # exit()
+    
+    # in_location = 'h:/globus/pitt/bil/TEST'
+    
+    # out_location = 'z:/testData/test_zarr'
+    
+    # in_location = '/CBI_Hive/globus/pitt/bil/TEST'
+    
+    # out_location = '/CBI_FastStore/testData/test_zarr2'
         
     
-    # mr = builder(in_location,out_location,tmp_dir='/bil/users/awatson/test_conv/tmp')
-    mr = builder(in_location,out_location,tmp_dir='z:/tmp_dask')
+    # # mr = builder(in_location,out_location,tmp_dir='/bil/users/awatson/test_conv/tmp')
+    # mr = builder(in_location,out_location,fileType=fileType,tmp_dir=tmp_dir,)
     
     
     # # 4 workers per core = 20 workers with lnode of 80 cores
@@ -796,8 +825,8 @@ if __name__ == '__main__':
         # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
         with Client(n_workers=workers,threads_per_worker=threads) as client:
             
-            # mr.write_resolution_series(client)
-            mr.down_samp(1,client)
+            mr.write_resolution_series(client)
+            # mr.down_samp(1,client)
 
     stop = time.time()
     print((stop - start)/60/60)
