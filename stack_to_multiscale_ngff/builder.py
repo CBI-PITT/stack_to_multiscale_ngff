@@ -773,7 +773,9 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     print(args)
-    in_location = args.input[0]
+    in_location = args.input
+    if len(in_location) == 1:
+        in_location = in_location[0]
     out_location = args.output[0]
     
     origionalChunkSize = args.origionalChunkSize
