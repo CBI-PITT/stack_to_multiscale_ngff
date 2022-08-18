@@ -725,7 +725,7 @@ class builder:
 
         omero = {}
         omero['id'] = 1
-        omero['name'] = os.path.split(self.in_location)[1]
+        omero['name'] = "a dataset"
         omero['version'] = "0.5-dev"
 
         colors = [
