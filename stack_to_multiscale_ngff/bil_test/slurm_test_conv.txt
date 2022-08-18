@@ -1,0 +1,8 @@
+
+srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/green/montage /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/red/montage /bil/users/awatson/conv/mouseID_325875-17543_clev0 -mem 2900 -cpu 80 -tmp /local --clevel 0
+
+srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/green/montage /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/red/montage /bil/users/awatson/conv/mouseID_325875-17543_clev1 -mem 2900 -cpu 80 -tmp /local --clevel 1
+
+srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/green/montage /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/red/montage /bil/users/awatson/conv/mouseID_325875-17543_clev6 -mem 2900 -cpu 80 -tmp /local --clevel 6
+
+srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/green/montage /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/red/montage /bil/users/awatson/conv/mouseID_325875-17543_clev9 -mem 2900 -cpu 80 -tmp /local --clevel 9
