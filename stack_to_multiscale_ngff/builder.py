@@ -783,7 +783,7 @@ if __name__ == '__main__':
     cpu = args.cpu[0]
     mem = args.mem[0]
     verbose = args.verbose
-    tmp_dir = args.tmpLocation
+    tmp_dir = args.tmpLocation[0]
     fileType = args.fileType
     geometry = args.geometry
     
