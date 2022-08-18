@@ -671,7 +671,7 @@ class builder:
         
         multiscales = {}
         multiscales["version"] = "0.5-dev"
-        multiscales["name"] = os.path.split(self.in_location)[1]
+        multiscales["name"] = "a dataset"
         multiscales["axes"] = [
             {"name": "t", "type": "time", "unit": "millisecond"},
             {"name": "c", "type": "channel"},
