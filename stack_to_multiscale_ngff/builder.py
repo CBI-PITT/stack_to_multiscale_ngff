@@ -47,7 +47,7 @@ class builder:
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
             compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
             zarr_store_type=H5_Shard_Store, tmp_dir='/local',
-            verbose=False, performance_report=True
+            verbose=False, performance_report=True, progress=False
             ):
                 
         self.in_location = in_location
@@ -66,6 +66,7 @@ class builder:
         self.store_ext = 'h5'
         self.verbose = verbose
         self.performance_report = performance_report
+        self.progress = progress
         
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
         self.res_chunk_limit_GB = self.mem / self.cpu_cores / 4 #Fudge factor for maximizing data being processed with available memory during downsample phase
@@ -363,12 +364,14 @@ class builder:
             with performance_report(filename=os.path.join(self.out_location,'performance_res_0.html')):
                 to_store = da.store(stack,z,lock=False, compute=False)
                 to_store = client.compute(to_store)
-                progress(to_store)
+                if self.progress:
+                    progress(to_store)
                 to_store = client.gather(to_store)
         else:
             to_store = da.store(stack,z,lock=False, compute=False)
             to_store = client.compute(to_store)
-            progress(to_store)
+            if self.progress:
+                progress(to_store)
             to_store = client.gather(to_store)
     
     @staticmethod
@@ -651,11 +654,13 @@ class builder:
         if self.performance_report:
             with performance_report(filename=os.path.join(self.out_location,'performance_res_{}.html'.format(res))):
                 future = client.compute(to_run)
-                # progress(future)
+                if self.progress:
+                    progress(future)
                 future = client.gather(future)
         else:
             future = client.compute(to_run)
-            # progress(future)
+            if self.progress:
+                progress(future)
             future = client.gather(future)
         
         
@@ -827,8 +832,8 @@ if __name__ == '__main__':
         # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
         with Client(n_workers=workers,threads_per_worker=threads) as client:
             
-            # mr.write_resolution_series(client)
-            mr.down_samp(1,client)
+            mr.write_resolution_series(client)
+            # mr.down_samp(1,client)
 
     stop = time.time()
     print((stop - start)/60/60)
