@@ -827,8 +827,8 @@ if __name__ == '__main__':
         # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
         with Client(n_workers=workers,threads_per_worker=threads) as client:
             
-            mr.write_resolution_series(client)
-            # mr.down_samp(1,client)
+            # mr.write_resolution_series(client)
+            mr.down_samp(1,client)
 
     stop = time.time()
     print((stop - start)/60/60)

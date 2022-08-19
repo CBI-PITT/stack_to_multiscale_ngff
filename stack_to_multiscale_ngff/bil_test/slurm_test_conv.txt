@@ -14,3 +14,39 @@ srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_
 srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/green/montage /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/red/montage /bil/users/awatson/conv/mouseID_325875-17543_clev8 -mem 2900 -cpu 80 -tmp /local --clevel 8
 
 srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/green/montage /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/red/montage /bil/users/awatson/conv/mouseID_325875-17543_clev9 -mem 2900 -cpu 80 -tmp /local --clevel 9
+
+## Only scale0 completed before failing
+Size			clevel						H:M:S		H
+19871334089     mouseID_325875-17543_clev0  05:21:39    5.35
+3462899316      mouseID_325875-17543_clev1  05:24:08	5.33
+3432909254      mouseID_325875-17543_clev2  05:05:56	5.08
+3364035963      mouseID_325875-17543_clev4  05:16:12	5.27
+3359531952      mouseID_325875-17543_clev5  05:10:27  	5.17
+3306049679      mouseID_325875-17543_clev6  05:17:15	5.28
+3302105389      mouseID_325875-17543_clev8  05:08:49	5.13
+3254768308      mouseID_325875-17543_clev9  08:05:52	8.08
+
+awatson 87260            python    compute     FAILED 1-00:00:00 2022-08-18T22:13:23 2022-08-19T06:19:15   08:05:52                              1         80            l001
+          87260.extern     extern             COMPLETED            2022-08-18T22:13:23 2022-08-19T06:19:15   08:05:52          0      4380K        1         80            l001
+          87260.0          python                FAILED            2022-08-18T22:13:24 2022-08-19T06:19:15   08:05:51 633191532K  16280868K        1         80            l001
+  awatson 87261            python    compute     FAILED 1-00:00:00 2022-08-18T22:13:31 2022-08-19T03:22:20   05:08:49                              1         80            l002
+          87261.extern     extern             COMPLETED            2022-08-18T22:13:31 2022-08-19T03:22:20   05:08:49          0      4380K        1         80            l002
+          87261.0          python                FAILED            2022-08-18T22:13:31 2022-08-19T03:22:20   05:08:49 493866252K  14329440K        1         80            l002
+  awatson 87262            python    compute     FAILED 1-00:00:00 2022-08-18T22:13:31 2022-08-19T03:30:46   05:17:15                              1         80            l003
+          87262.extern     extern             COMPLETED            2022-08-18T22:13:31 2022-08-19T03:30:46   05:17:15          0      4380K        1         80            l003
+          87262.0          python                FAILED            2022-08-18T22:13:31 2022-08-19T03:30:46   05:17:15 570178312K  13798236K        1         80            l003
+  awatson 87263            python    compute     FAILED 1-00:00:00 2022-08-18T22:13:51 2022-08-19T03:24:18   05:10:27                              1         80            l004
+          87263.extern     extern             COMPLETED            2022-08-18T22:13:51 2022-08-19T03:24:18   05:10:27          0      4380K        1         80            l004
+          87263.0          python                FAILED            2022-08-18T22:13:51 2022-08-19T03:24:18   05:10:27 630734888K  25799080K        1         80            l004
+  awatson 87264            python    compute     FAILED 1-00:00:00 2022-08-18T22:13:51 2022-08-19T03:30:03   05:16:12                              1         80            l005
+          87264.extern     extern             COMPLETED            2022-08-18T22:13:51 2022-08-19T03:30:03   05:16:12          0      4380K        1         80            l005
+          87264.0          python                FAILED            2022-08-18T22:13:51 2022-08-19T03:30:03   05:16:12 602435588K  18893604K        1         80            l005
+  awatson 87265            python    compute     FAILED 1-00:00:00 2022-08-18T22:13:51 2022-08-19T03:19:47   05:05:56                              1         80            l006
+          87265.extern     extern             COMPLETED            2022-08-18T22:13:51 2022-08-19T03:19:47   05:05:56          0      4380K        1         80            l006
+          87265.0          python                FAILED            2022-08-18T22:13:51 2022-08-19T03:19:47   05:05:56 607885872K  25707692K        1         80            l006
+  awatson 87266            python    compute     FAILED 1-00:00:00 2022-08-18T22:13:51 2022-08-19T03:37:59   05:24:08                              1         80            l007
+          87266.extern     extern             COMPLETED            2022-08-18T22:13:51 2022-08-19T03:37:59   05:24:08          0      4380K        1         80            l007
+          87266.0          python                FAILED            2022-08-18T22:13:51 2022-08-19T03:37:59   05:24:08 553424860K  20510096K        1         80            l007
+  awatson 87267            python    compute     FAILED 1-00:00:00 2022-08-18T22:13:51 2022-08-19T03:35:30   05:21:39                              1         80            l008
+          87267.extern     extern             COMPLETED            2022-08-18T22:13:51 2022-08-19T03:35:30   05:21:39          0      4380K        1         80            l008
+          87267.0          python                FAILED            2022-08-18T22:13:51 2022-08-19T03:35:30   05:21:39 486009048K  19496204K        1         80            l008
