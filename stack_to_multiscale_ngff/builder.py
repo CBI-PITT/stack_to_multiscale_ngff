@@ -651,11 +651,11 @@ class builder:
         if self.performance_report:
             with performance_report(filename=os.path.join(self.out_location,'performance_res_{}.html'.format(res))):
                 future = client.compute(to_run)
-                progress(future)
+                # progress(future)
                 future = client.gather(future)
         else:
             future = client.compute(to_run)
-            progress(future)
+            # progress(future)
             future = client.gather(future)
         
         
