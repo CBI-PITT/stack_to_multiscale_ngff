@@ -1,4 +1,3 @@
-/bil/data/df/75/df75626840c76c15/mouseID_325875-17543/green/montage /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/red/montage /bil/users/awatson/conv/mouseID_325875-17543 -mem 2900 -cpu 80 -tmp /local --clevel 8
 /bil/data/df/75/df75626840c76c15/mouseID_210254-15257/Green/Origin /bil/data/df/75/df75626840c76c15/mouseID_210254-15257/Red/Origin /bil/users/awatson/conv/mouseID_210254-15257 -mem 2900 -cpu 80 -tmp /local --clevel 8
 /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/green/montage /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/red/montage /bil/users/awatson/conv/mouseID_325875-17543 -mem 2900 -cpu 80 -tmp /local --clevel 8
 /bil/data/df/75/df75626840c76c15/mouseID_360835-18049/Green/montage /bil/data/df/75/df75626840c76c15/mouseID_360835-18049/Red/montage /bil/users/awatson/conv/mouseID_360835-18049 -mem 2900 -cpu 80 -tmp /local --clevel 8
