@@ -3,7 +3,7 @@
 #SBATCH --ntasks=1
 #SBATCH --mem 2900G 
 #SBATCH --cpus-per-task 80
-#SBATCH --array=1-1000
+#SBATCH --array=1-16%4
 
 LINE=$(sed -n "$SLURM_ARRAY_TASK_ID"p /bil/users/awatson/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/bil_test/batch_cmd_list.txt)
 echo $LINE
