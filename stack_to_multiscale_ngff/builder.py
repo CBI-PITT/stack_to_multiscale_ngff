@@ -314,7 +314,19 @@ class builder:
             self.write_resolution_0(client)
             return
         
-        self.down_samp(res,client)
+        out = self.down_samp(res,client)
+        # During creation of res 1, the min and max is calculated for res 0
+        # out is a list of tuple (min,max,channel)
+        if res == 1:
+            self.min = []
+            self.max = []
+            for ch in range(self.Channels):
+                # Sort by channel
+                tmp = [x for x in out if x[-1] == ch]
+                # Append vlues to list in channel order
+                self.min.append( min([x[0] for x in tmp]) )
+                self.max.append( max([x[1] for x in tmp]) )
+            self.set_omero_window()
     
     
     def write_resolution_0(self,client):
@@ -480,7 +492,7 @@ class builder:
         return self.dtype_convert(canvas)
     
     
-    def fast_mean_3d_downsample(self,from_path,to_path,info,store=H5_Shard_Store):
+    def fast_mean_3d_downsample(self,from_path,to_path,info,minmax=False,store=H5_Shard_Store):
         if store == H5_Shard_Store:
             zstore = store(from_path, verbose=self.verbose)
             # zstore = H5_Shard_Store(from_path, verbose=self.verbose)
@@ -506,6 +518,10 @@ class builder:
         del zarray
         del zstore
         
+        working = self.dtype_convert(working)
+        # Calculate min/max of input data
+        if minmax:
+            min, max = working.min(),working.max()
         working = self.pad_3d_2x(working,info,final_pad=2)
         working = self.local_mean_3d_downsample_2x(working)
         
@@ -528,7 +544,10 @@ class builder:
             (info['x'][0][0]+info['x'][1][0])//2:(info['x'][0][1]-info['x'][1][1])//2  #Compensate for overlap in new array
             ] = working[1:-1,1:-1,1:-1] # Write array trimmed of 1 value along all edges
         
-        return
+        if minmax:
+            return (min,max,info['c'])
+        else:
+            return
     
     
     def determine_chunks_size_for_downsample(self,res):
@@ -647,7 +666,10 @@ class builder:
                             
                             # working = delayed(smooth_downsample)(parent_location,out_location,1,info,store=H5Store)
                             # working = delayed(local_mean_3d_downsample)(parent_location,out_location,info,store=H5Store)
-                            working = delayed(self.fast_mean_3d_downsample)(parent_location,out_location,info,store=self.zarr_store_type)
+                            if res == 1:
+                                working = delayed(self.fast_mean_3d_downsample)(parent_location,out_location,info,minmax=True,store=self.zarr_store_type)
+                            else:
+                                working = delayed(self.fast_mean_3d_downsample)(parent_location,out_location,info,minmax=False,store=self.zarr_store_type)
                             print('{},{},{},{},{}'.format(t,c,z,y,x))
                             to_run.append(working)
             
@@ -665,7 +687,7 @@ class builder:
         
         
         
-        return
+        return future
     
     
     def build_zattrs(self):
@@ -694,9 +716,9 @@ class builder:
                 "type": "scale",
                 "scale": [
                     1, 1,
-                    round(self.geometry[0]*(res+1)**2,3),
-                    round(self.geometry[1]*(res+1)**2,3),
-                    round(self.geometry[2]*(res+1)**2,3)
+                    round(self.geometry[2]*(res+1)**2,3),
+                    round(self.geometry[3]*(res+1)**2,3),
+                    round(self.geometry[4]*(res+1)**2,3)
                     ]
                 }]
             
@@ -734,10 +756,10 @@ class builder:
         omero['version'] = "0.5-dev"
 
         colors = [
-            'FF0000',
-            '00FF00',
-            'FF0000',
-            'FF00FF'
+            'FF0000', #red
+            '00FF00', #green
+            'FF00FF', #purple
+            'FF00FF'  #blue
             ]
         colors = colors*self.Channels
         colors = colors[:self.Channels]
@@ -751,9 +773,17 @@ class builder:
             new["family"] = "linear"
             new['inverted'] = False
             new['label'] = "Channel{}".format(chn)
+            
+            if self.dtype==np.dtype('uint8'):
+                end = mx = 255
+            elif self.dtype==np.dtype('uint16'):
+                end = mx = 65535
+            elif self.dtype==float:
+                end = mx = 1
+            
             new['window'] = {
-                "end": 65535, #Get max value of a low resolution series
-                "max": 65535, #base on dtype
+                "end": end, #Get max value of a low resolution series
+                "max": mx, #base on dtype
                 "min": 0, #base on dtype
                 "start": 0 #Get min value of a low resolution series
                 }
@@ -771,6 +801,65 @@ class builder:
         r.attrs['omero'] = omero
         
         return
+    
+    def edit_omero_channels(self,channel_num,attr_name,new_value):
+        store = self.zarr_store_type(self.out_location,verbose=1)
+        r = zarr.open(store)
+        
+        omero = r.attrs['omero']
+        
+        channels = omero['channels']
+        
+        channels[channel_num][attr_name] = new_value
+        
+        omero['channels'] = channels
+        
+        r.attrs['omero'] = omero
+        
+    
+    def get_omero_attr(self,attr_name):
+        store = self.zarr_store_type(self.out_location,verbose=1)
+        r = zarr.open(store)
+        
+        omero = r.attrs['omero']
+        
+        return omero[attr_name]
+        
+    # def edit_omero_channels(channel_num,attr_name,new_value):
+    #     store = zarr.DirectoryStore(r'Z:\toTest\testZarr')
+    #     r = zarr.open(store)
+        
+    #     omero = r.attrs['omero']
+        
+    #     channels = omero['channels']
+        
+    #     channels[channel_num][attr_name] = new_value
+        
+        
+    #     r.attrs['omero'] = channels
+    
+    
+    def set_omero_window(self):
+        
+        channels = self.get_omero_attr('channels')
+        print(channels)
+        for ch in range(self.Channels):
+            #set in write_resolution()
+            print(ch)
+            channel_dict = channels[ch]
+            print(channel_dict)
+            window = channel_dict['window']
+            print(window)
+            window['start'] = self.min[ch]
+            window['end'] = self.max[ch]
+            print(window)
+            self.edit_omero_channels(channel_num=ch,attr_name='window',new_value=window)
+        
+        
+        
+        
+
+
 
 if __name__ == '__main__':
     
@@ -790,13 +879,13 @@ if __name__ == '__main__':
     verbose = args.verbose
     tmp_dir = args.tmpLocation[0]
     fileType = args.fileType
-    geometry = args.geometry
+    scale = args.scale
     
     compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
     
     
     mr = builder(in_location, out_location, fileType=fileType, 
-            geometry=geometry,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
+            geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
             cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor)
     
     
@@ -834,6 +923,8 @@ if __name__ == '__main__':
             
             mr.write_resolution_series(client)
             # mr.down_samp(1,client)
+            
+            # Need to take the min/max data collected during res1 creation and edit zattrs
 
     stop = time.time()
     print((stop - start)/60/60)
