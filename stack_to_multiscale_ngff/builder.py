@@ -708,17 +708,43 @@ class builder:
             ]
 
 
+        # datasets = [] 
+        # for res in self.pyramidMap:
+        #     scale = {}
+        #     scale["path"] = 'scale{}'.format(res)
+        #     scale["coordinateTransformations"] = [{
+        #         "type": "scale",
+        #         "scale": [
+        #             1, 1,
+        #             round(self.geometry[2]*(res+1)**2,3),
+        #             round(self.geometry[3]*(res+1)**2,3),
+        #             round(self.geometry[4]*(res+1)**2,3)
+        #             ]
+        #         }]
+            
+        #     datasets.append(scale)
+            
         datasets = [] 
         for res in self.pyramidMap:
             scale = {}
             scale["path"] = 'scale{}'.format(res)
+            
+            z=self.geometry[2]
+            y=self.geometry[3]
+            x=self.geometry[4]
+            
+            for _ in range(res):
+                z *= 2
+                y *= 2
+                x *= 2
+                
             scale["coordinateTransformations"] = [{
                 "type": "scale",
                 "scale": [
                     1, 1,
-                    round(self.geometry[2]*(res+1)**2,3),
-                    round(self.geometry[3]*(res+1)**2,3),
-                    round(self.geometry[4]*(res+1)**2,3)
+                    round(z,3),
+                    round(y,3),
+                    round(x,3)
                     ]
                 }]
             
