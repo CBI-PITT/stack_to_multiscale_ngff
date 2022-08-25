@@ -147,16 +147,15 @@ class H5_Shard_Store(Store):
                     f.create_dataset(key, data=data)
                     
                 if self.verify_write:
-                    with h5py.File(file,'r',libver='latest', swmr=self.swmr) as f:
-                        from_file = f[key][()]
-                        # print(from_file)
-                        # print(data)
-                        if np.ndarray.all(from_file == data):
-                            # print('True')
-                            pass
-                        else:
-                            print('errored')
-                            raise KeyError(key)
+                    from_file = self._fromfile(file,key)
+                    # print(from_file)
+                    # print(data)
+                    if from_file == data.tobytes():
+                        # print('True')
+                        pass
+                    else:
+                        print('errored')
+                        raise KeyError(key)
                 break
             except:
                 trys += 1
