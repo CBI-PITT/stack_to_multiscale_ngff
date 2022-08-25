@@ -63,13 +63,12 @@ class builder:
         self.compressor = compressor
         self.zarr_store_type = zarr_store_type
         self.tmp_dir = tmp_dir
-        self.store_ext = 'h5'
         self.verbose = verbose
         self.performance_report = performance_report
         self.progress = progress
         
-        self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
-        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 4 #Fudge factor for maximizing data being processed with available memory during downsample phase
+        self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 3 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
+        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 6 #Fudge factor for maximizing data being processed with available memory during downsample phase
         
         # Makes store location and initial group
         # do not make a class attribute because it may not pickle when computing over dask
@@ -228,7 +227,7 @@ class builder:
             chunk = (
                 chunk[0] if chunk[0] <= final_chunk_size[0] else final_chunk_size[0],
                 chunk[1] if chunk[1] >= final_chunk_size[1] else final_chunk_size[1],
-                chunk[2] if chunk[2] >= final_chunk_size[2] else final_chunk_size[0]
+                chunk[2] if chunk[2] >= final_chunk_size[2] else final_chunk_size[2]
                 )
             pyramidMap[current_pyramid_level] = [out_shape,chunk]
                 
@@ -237,8 +236,17 @@ class builder:
             # if all([x<y for x,y in zip(out_shape,chunk)]):
             #     del pyramidMap[current_pyramid_level]
             #     break
-            if any([x<y for x,y in zip(out_shape,chunk)]):
+            # if any([x<y for x,y in zip(out_shape,chunk)]):
+            #     del pyramidMap[current_pyramid_level]
+            #     break
+            
+            # stop if any shape dimension is below 1 then delete pyramid level
+            if any([x<2 for x in out_shape]):
                 del pyramidMap[current_pyramid_level]
+                break
+            
+            # stop if an x or y dim is less than chunk shape
+            if any([x<y for x,y in zip(out_shape[1:],chunk[1:])]):
                 break
         
             
