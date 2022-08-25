@@ -32,6 +32,7 @@ import os
 import h5py
 import shutil
 import time
+import numpy as np
 
 from zarr.errors import (
     MetadataError,
@@ -67,7 +68,7 @@ class H5_Shard_Store(Store):
     Currently, the number of axes in the zarr array must be len(zarr_array) >= 4
     """
 
-    def __init__(self, path, normalize_keys=True,swmr=True,verbose=False):
+    def __init__(self, path, normalize_keys=True,swmr=True,verbose=False,verify_write=True):
 
         # guard conditions
         path = os.path.abspath(path)
@@ -78,6 +79,7 @@ class H5_Shard_Store(Store):
         self.normalize_keys = normalize_keys
         self.swmr=swmr
         self.verbose = verbose #bool or int >= 1
+        self.verify_write = verify_write
         self._files = ['.zarray','.zgroup','.zattrs','.zmetadata']
 
     def _normalize_key(self, key):
@@ -143,6 +145,18 @@ class H5_Shard_Store(Store):
                             print('Deleting existing dataset before writing new data : {}'.format(key))
                         del f[key]
                     f.create_dataset(key, data=data)
+                    
+                if self.verify_write:
+                    with h5py.File(file,'r',libver='latest', swmr=self.swmr) as f:
+                        from_file = f[key][()]
+                        # print(from_file)
+                        # print(data)
+                        if np.ndarray.all(from_file == data):
+                            # print('True')
+                            pass
+                        else:
+                            print('errored')
+                            raise KeyError(key)
                 break
             except:
                 trys += 1
