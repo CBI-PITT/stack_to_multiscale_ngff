@@ -6,8 +6,10 @@ Created on Mon Aug  1 21:11:13 2022
 """
 
 import zarr
+import os
 import numpy as np
 import tifffile
+import skimage
 # import imagecodecs
 from copy import deepcopy
 import dask
@@ -36,16 +38,26 @@ each file.
 class tiff_manager:
     def __init__(self,file,desired_chunk_depth=64):
         self.file = file
-        with tifffile.imread(self.file,aszarr=True) as store:
-            img = zarr.open(store)
+        
+        self.ext = os.path.splitext(file)[-1]
+        if self.ext == '.tiff' or self.ext == '.tif':
+            img = self._get_tiff_zarr_array()
             self.shape = img.shape
             self.nbytes = img.nbytes
             self.ndim = img.ndim
             self.chunks = img.chunks
             self.dtype = img.dtype
-            self._desired_chunk_depth = desired_chunk_depth
-            del img
         
+        elif self.ext == '.jp2':
+            img = self._read_jp2(slice(None))
+            self.shape = img.shape
+            self.nbytes = img.nbytes
+            self.ndim = img.ndim
+            self.chunks = (1,self.shape[1])
+            self.dtype = img.dtype
+        del img
+        
+        self._desired_chunk_depth = desired_chunk_depth
         self._adjust_chunk_depth()
         
     def __getitem__(self,key):
@@ -53,14 +65,32 @@ class tiff_manager:
         if key == (slice(0,0,None),)*self.ndim:
             #Hack to speed up dask array conversions
             return np.asarray([],dtype=self.dtype)
-        return self._read_tiff(key)
+        return self._read_img(key)
     
-    def _read_tiff(self,key):
-        with tifffile.imread(self.file,aszarr=True) as store:
-            return zarr.open(store)[key]
+    # def _read_tiff(self,key):
+    #     with tifffile.imread(self.file,aszarr=True) as store:
+    #         return zarr.open(store)[key]
         
     def _change_file(self,file):
         self.file = file
+    
+    def _read_img(self,key):
+        if self.ext == '.tiff' or self.ext == '.tif':
+            return self._read_tiff(key)
+        elif self.ext == '.jp2':
+            return self._read_jp2(key)
+    
+    def _get_tiff_zarr_array(self):
+        with tifffile.imread(self.file,aszarr=True) as store:
+            return zarr.open(store)
+        
+    def _read_tiff(self,key):
+        print('Read {}'.format(self.file))
+        return self._get_tiff_zarr_array()[key]
+    
+    def _read_jp2(self,key):
+        print('Read {}'.format(self.file))
+        return skimage.io.imread(self.file)[key]
     
     def clone_manager_new_file(self,file):
         '''
@@ -90,14 +120,24 @@ class tiff_manager_3d:
     def __init__(self,fileList,desired_chunk_depth_y=64):
         assert isinstance(fileList,(list,tuple))
         self.fileList = fileList
-        with tifffile.imread(self.fileList[0],aszarr=True) as store:
-            img = zarr.open(store)
+        self.ext = os.path.splitext(fileList[0])[-1]
+        
+        if self.ext == '.tiff' or self.ext == '.tif':
+            img = self._get_tiff_zarr_array(0)
             self.shape = img.shape
             self.nbytes = img.nbytes
             self.ndim = img.ndim
             self.chunks = img.chunks
             self.dtype = img.dtype
-            del img
+        
+        elif self.ext == '.jp2':
+            img = self._read_jp2(slice(None),0)
+            self.shape = img.shape
+            self.nbytes = img.nbytes
+            self.ndim = img.ndim
+            self.chunks = (1,self.shape[1])
+            self.dtype = img.dtype
+        del img
         
         self._desired_chunk_depth_y = desired_chunk_depth_y
         self._conv_3d()
@@ -171,10 +211,24 @@ class tiff_manager_3d:
         return out_shape
         
     
+    def _read_img(self,key,idx):
+        if self.ext == '.tiff' or self.ext == '.tif':
+            return self._read_tiff(key,idx)
+        elif self.ext == '.jp2':
+            return self._read_jp2(key,idx)
+    
+    def _get_tiff_zarr_array(self,idx):
+        with tifffile.imread(self.fileList[idx],aszarr=True) as store:
+            return zarr.open(store)
+        
     def _read_tiff(self,key,idx):
         print('Read {}'.format(self.fileList[idx]))
-        with tifffile.imread(self.fileList[idx],aszarr=True) as store:
-            return zarr.open(store)[key]
+        return self._get_tiff_zarr_array(idx)[key]
+    
+    def _read_jp2(self,key,idx):
+        print('Read {}'.format(self.fileList[idx]))
+        return skimage.io.imread(self.fileList[idx])[key]
+
         
     # def _get_3d(self,key):
     #     key = self._format_slice(key)
@@ -211,7 +265,7 @@ class tiff_manager_3d:
             if len(two_d) == 1:
                 two_d = two_d[0]
             # print(two_d)
-            canvas[idx] = self._read_tiff(two_d,idx)
+            canvas[idx] = self._read_img(two_d,idx)
         return canvas
     
     def _change_file_list(self,fileList):
