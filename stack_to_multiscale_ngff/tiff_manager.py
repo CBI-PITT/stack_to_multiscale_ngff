@@ -164,6 +164,20 @@ class tiff_manager_3d:
     def _adjust_chunk_depth(self):
         if self._desired_chunk_depth_y % self.chunks[1] == 0:
                 self.chunks = (self.shape[0],self._desired_chunk_depth_y,*self.chunks[2:])
+        elif self._desired_chunk_depth_y > self.chunks[1]:
+            self.chunks = (
+                self.shape[0],
+                self._desired_chunk_depth_y - (self._desired_chunk_depth_y % self.chunks[1]),
+                self.shape[2]
+                )
+        #Could cause problems with over estimation of size
+        elif self._desired_chunk_depth_y < self.chunks[1]:
+            self.chunks = (
+                self.shape[0],
+                self._desired_chunk_depth_y + (self.chunks[1] % self._desired_chunk_depth_y),
+                self.shape[2]
+                )
+            
     
     @staticmethod
     def _format_slice(key):
