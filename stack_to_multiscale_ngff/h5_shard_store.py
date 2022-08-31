@@ -151,7 +151,7 @@ class H5_Shard_Store(Store):
                     # print(from_file)
                     # print(data)
                     if from_file == data.tobytes():
-                        # print('True')
+                        print('True')
                         pass
                     else:
                         print('errored')

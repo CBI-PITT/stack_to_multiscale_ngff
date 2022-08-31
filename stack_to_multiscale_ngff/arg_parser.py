@@ -37,14 +37,15 @@ optional = [
     (['-cpu'],int,1,'C',[os.cpu_count()],'store','Number of cpus which are available'),
     (['-mem'],int,1,'M',[int(psutil.virtual_memory().free/1024/1024/1024*.8)],'store','Available RAM in GB: default is 0.8x of free RAM'),
     (['-tmp','--tmpLocation'],str,1,'TMP',['/CBI_FastStore/tmp_dask'],'store','Location for temp files --> high-speed local storage is suggested'),
-    (['-ft','--fileType'],str,1,'FT','tif','store','File type for input --> Currently only tif is supported'),
+    (['-ft','--fileType'],str,1,'FT',['tif'],'store','File type for input --> Currently only tif is supported'),
     (['-s','--scale'],float,5,'S',(1,1,1,1,1),'store','5-dim scale of the datasets (tczyx) in MICRONS'),
     (['-cl','--clevel'],int,1,'CMP',[9],'store','Compression level : Integer 0-9 where 0 is no compression and 9 is the most compression')
-    
+
     ]
 
 switch = [
-    (['-v', '--verbose'], 0,'count','Verbose output : additive more v = greater level of verbosity')
+    (['-v', '--verbose'], 0,'count','Verbose output : additive more v = greater level of verbosity'),
+    (['-vzw', '--verify_zarr_write'], False,'store_true','Immediately verify each chunk written to disk.  Currently only works with H5_Shard_Store')
     ]
 
 for var,v_type,nargs,v_help in positional:

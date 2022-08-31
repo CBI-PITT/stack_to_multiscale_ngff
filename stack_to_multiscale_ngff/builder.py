@@ -47,7 +47,8 @@ class builder:
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
             compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
             zarr_store_type=H5_Shard_Store, tmp_dir='/local',
-            verbose=False, performance_report=True, progress=False
+            verbose=False, performance_report=True, progress=False,
+            verify_zarr_write=False
             ):
                 
         self.in_location = in_location
@@ -66,9 +67,10 @@ class builder:
         self.verbose = verbose
         self.performance_report = performance_report
         self.progress = progress
+        self.verify_zarr_write = verify_zarr_write
         
-        self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 3 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
-        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 6 #Fudge factor for maximizing data being processed with available memory during downsample phase
+        self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
+        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 4 #Fudge factor for maximizing data being processed with available memory during downsample phase
         
         # Makes store location and initial group
         # do not make a class attribute because it may not pickle when computing over dask
@@ -297,7 +299,7 @@ class builder:
     def get_store(self,res):
         if self.zarr_store_type == H5_Shard_Store:
             print('Getting H5Store')
-            store = self.zarr_store_type(self.scale_name(res),verbose=self.verbose)
+            store = self.zarr_store_type(self.scale_name(res),verbose=self.verbose,verify_write=self.verify_zarr_write)
             # store = H5Store(self.scale_name(res),verbose=2)
         else:
             print('Getting Other Store')
@@ -502,7 +504,7 @@ class builder:
     
     def fast_mean_3d_downsample(self,from_path,to_path,info,minmax=False,store=H5_Shard_Store):
         if store == H5_Shard_Store:
-            zstore = store(from_path, verbose=self.verbose)
+            zstore = store(from_path, verbose=self.verbose,verify_write=self.verify_zarr_write)
             # zstore = H5_Shard_Store(from_path, verbose=self.verbose)
         else:
             zstore = store(from_path)
@@ -536,7 +538,7 @@ class builder:
         
         # print('Preparing to write')
         if store == H5_Shard_Store:
-            zstore = store(to_path, verbose=self.verbose)
+            zstore = store(to_path, verbose=self.verbose,verify_write=self.verify_zarr_write)
             # zstore = H5Store(to_path, verbose=self.verbose)
         else:
             zstore = store(to_path)
@@ -912,15 +914,17 @@ if __name__ == '__main__':
     mem = args.mem[0]
     verbose = args.verbose
     tmp_dir = args.tmpLocation[0]
-    fileType = args.fileType
+    fileType = args.fileType[0]
     scale = args.scale
+    verify_zarr_write = args.verify_zarr_write
     
     compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
     
     
     mr = builder(in_location, out_location, fileType=fileType, 
             geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
-            cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor)
+            cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
+            verify_zarr_write=verify_zarr_write)
     
     
 
@@ -951,6 +955,14 @@ if __name__ == '__main__':
         # with Client(n_workers=8,threads_per_worker=2) as client:
         workers = mr.workers
         threads = mr.sim_jobs
+        # os.environ["DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT"] = "60s"
+        # os.environ["DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP"] = "60s"
+        # os.environ["DASK_DISTRIBUTED__DEPLOY__LOST_WORKER"] = "60s"
+        
+        #https://github.com/dask/distributed/blob/main/distributed/distributed.yaml#L129-L131
+        os.environ["DISTRIBUTED__COMM__TIMEOUTS__CONNECT"] = "60s"
+        os.environ["DISTRIBUTED__COMM__TIMEOUTS__TCP"] = "60s"
+        os.environ["DISTRIBUTED__DEPLOY__LOST_WORKER"] = "60s"
         print('workers {}, threads {}, mem {}, chunk_size_limit {}'.format(workers, threads, mr.mem, mr.res0_chunk_limit_GB))
         # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
         with Client(n_workers=workers,threads_per_worker=threads) as client:

@@ -10,6 +10,7 @@ import os
 import numpy as np
 import tifffile
 import skimage
+import io
 # import imagecodecs
 from copy import deepcopy
 import dask
@@ -90,7 +91,9 @@ class tiff_manager:
     
     def _read_jp2(self,key):
         print('Read {}'.format(self.file))
-        return skimage.io.imread(self.file)[key]
+        with open(self.file, 'rb') as f:
+            img = io.BytesIO(f.read())
+        return skimage.io.imread(img)[key]
     
     def clone_manager_new_file(self,file):
         '''
@@ -227,7 +230,10 @@ class tiff_manager_3d:
     
     def _read_jp2(self,key,idx):
         print('Read {}'.format(self.fileList[idx]))
-        return skimage.io.imread(self.fileList[idx])[key]
+        with open(self.fileList[idx], 'rb') as f:
+            img = io.BytesIO(f.read())
+        return skimage.io.imread(img)[key]
+        # return skimage.io.imread(self.fileList[idx])[key]
 
         
     # def _get_3d(self,key):
