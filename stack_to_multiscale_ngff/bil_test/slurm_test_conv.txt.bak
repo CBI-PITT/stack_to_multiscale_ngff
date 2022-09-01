@@ -1,26 +1,7 @@
-srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/39/19/39194b133512dab0/E18.5_BB0604/LSFM/Glutamine_Decarboxylase /bil/data/39/19/39194b133512dab0/E18.5_BB0604/LSFM/Background /bil/users/awatson/conv/yongsoo/39/19/39194b133512dab0/E18.5_BB0604.omezarr -mem 2900 -cpu 80 -tmp /local -s 1 1 5 1.8 1.8 -oc 1 1 1 1024 1024 -fc 1 1 64 64 64 --clevel 8 -ft tif
 
-43 GB, 2 color
-0.08471505171722836 hours to complete = 5.08 min
-0.06871507267157237 hours to complete = 4.12 min
-
-39 GB, 3 color
-0.0914652779367235 hours to complete = 5.48 min
-
-srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/39/19/39194b133512dab0/P14_JL0296/STPT /bil/users/awatson/conv/yongsoo/39/19/39194b133512dab0/P14_JL0296.omezarr -mem 2900 -cpu 80 -tmp /local -s 1 1 50 1 1 -oc 1 1 1 1024 1024 -fc 1 1 64 64 64 --clevel 8 -ft tif
-
-
-
-
-
-
-Yongsoo datasets
 srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/56/fb/56fb1b25ca6b5fae/OTR-Cre_Ai14/OTR-Cre_Ai14_P7_F1/stitchedImage_ch1 /bil/data/56/fb/56fb1b25ca6b5fae/OTR-Cre_Ai14/OTR-Cre_Ai14_P7_F1/stitchedImage_ch2 /bil/users/awatson/conv/56/fb/56fb1b25ca6b5fae/OTR-Cre_Ai14/OTR-Cre_Ai14_P7_F1/OTR-Cre_Ai14_P7_F1.omezarr -mem 2900 -cpu 80 -tmp /local -s 1 1 50 1 1 -oc 1 1 1 1024 1024 -fc 1 1 64 64 64 --clevel 8 -ft tif
 
 lnode time to complete : 0.07707611540953319 hours = 4.62 min
-
-
--------------------------------------------------------------------------
 
 Full run
 srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/green/montage /bil/data/df/75/df75626840c76c15/mouseID_325875-17543/red/montage /bil/users/awatson/conv/mouseID_325875-17543_clev8_full -mem 2900 -cpu 80 -tmp /local --clevel 8

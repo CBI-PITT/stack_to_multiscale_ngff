@@ -47,7 +47,6 @@ for idx,group in enumerate(toProcess):
         line = line + inDir + ' '
     
     outDir = group.replace(bilPath,outPath)
-    line = line + inDir + ' '
     line = line + outDir + '/' + os.path.split(outDir)[-1] + '.omezarr '
     line = line + '-mem ' + str(mem) + ' '
     line = line + '-cpu ' + str(cpu) + ' '

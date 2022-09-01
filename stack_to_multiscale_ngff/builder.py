@@ -5,7 +5,7 @@ Created on Fri Oct 29 09:46:38 2021
 @author: alpha
 """
 
-import os, glob, zarr, time, math, sys
+import os, glob, zarr, time, math, sys, shutil
 import numpy as np
 import dask
 from dask.delayed import delayed
@@ -87,7 +87,10 @@ class builder:
         
         ##  LIST ALL FILES TO BE CONVERTED  ##
         filesList = []
-        if isinstance(self.in_location,(list,tuple)):
+        if isinstance(self.in_location, str) and os.path.splitext(self.in_location)[-1] == '.nii':
+            filesList.append(self.nifti_unpacker(self.in_location))
+        
+        elif isinstance(self.in_location,(list,tuple)):
             # Can designate each directory with image files
             for ii in self.in_location:
                 filesList.append(sorted(glob.glob(os.path.join(ii,'*.{}'.format(self.fileType)))))
@@ -892,7 +895,62 @@ class builder:
             self.edit_omero_channels(channel_num=ch,attr_name='window',new_value=window)
         
         
+    def nifti_unpacker(self,file):
         
+        import nibabel as nib
+        from skimage import io, img_as_uint, img_as_float32
+        import numpy as np
+
+        # file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_rawdata.nii"
+        # file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_avg_dwi.nii"
+
+        # #Background? Bone?
+        # file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_a0.nii"
+        # file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_M0_rigid.nii"
+
+        # #Invert of background, bone?
+        # file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_fa.nii"
+
+        # #Nothing interesting?
+        # file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_adc.nii"
+        # file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_MTR_rigid.nii"
+
+
+        fileObj = nib.load(file)
+
+        data = fileObj.get_fdata()
+
+        data = data.astype('uint16')
+
+        if len(data.shape) == 4:
+            # Create a mean image accross the last axis
+            data = img_as_float32(data)
+            data = img_as_uint(np.mean(data,axis=-1))
+        
+        data = data[::-1,::-1,::-1]
+        tmp_img_dir = os.path.join(self.tmp_dir,'img')
+        os.makedirs(tmp_img_dir,exist_ok=True)
+        
+        #Remove any existing files
+        filelist = glob.glob(os.path.join(tmp_img_dir, "**/**"))
+        for f in filelist:
+            try:
+                if os.path.isfile(f):
+                    os.remove(f)
+                elif os.path.isdir(f):
+                    shutil.rmtree(f)
+            except Exception:
+                pass
+        
+        for idx,ii in enumerate(data):
+            idx = str(idx).zfill(4)
+            fname = 'nii_layer_{}.tif'.format(idx)
+            fname = os.path.join(tmp_img_dir,fname)
+            print('Writing file {}'.format(fname))
+            io.imsave(fname,ii)
+        
+        return sorted(glob.glob(os.path.join(tmp_img_dir, "*")))
+
         
 
 
@@ -971,6 +1029,18 @@ if __name__ == '__main__':
             # mr.down_samp(1,client)
             
             # Need to take the min/max data collected during res1 creation and edit zattrs
+    
+    #Clean up
+    #Remove any existing files
+    filelist = glob.glob(os.path.join(mr.tmp_dir, "**/**"))
+    for f in filelist:
+        try:
+            if os.path.isfile(f):
+                os.remove(f)
+            elif os.path.isdir(f):
+                shutil.rmtree(f)
+        except Exception:
+            pass
 
     stop = time.time()
     print((stop - start)/60/60)
