@@ -1,3 +1,10 @@
+
+## Test dataset at CBI
+srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_405429-182725/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_405429-182725/CH2 /bil/users/awatson/conv/2b/da/2bdaf9e66a246844/mouseID_405429-182725.omezarr -mem 2900 -cpu 80 -tmp /local -s 1 1 1 0.35 0.35 -oc 1 1 4 1024 1024 -fc 1 1 128 128 128 --clevel 8 -ft tif
+
+
+python -i /CBI_FastStore/cbiPythonTools/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py '/CBI_Hive/globus/pitt/bil/yongsoo/MRI/P4_JN0167_rawdata.nii' '/CBI_Hive/globus/pitt/bil/yongsoo/MRI/P4_JN0167_rawdata.omezarr' -s 1 1 50 50 50 -oc 1 1 64 64 64 -fc 1 1 64 64 64 --clevel 8 -ft tif -tmp '/CBI_Hive/globus/pitt/bil/yongsoo/MRI/tmp'
+
 srun --mem 2900G --cpus-per-task 80 -l ~/miniconda3/envs/conv/bin/python ~/test_conv/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/39/19/39194b133512dab0/E18.5_BB0604/LSFM/Glutamine_Decarboxylase /bil/data/39/19/39194b133512dab0/E18.5_BB0604/LSFM/Background /bil/users/awatson/conv/yongsoo/39/19/39194b133512dab0/E18.5_BB0604.omezarr -mem 2900 -cpu 80 -tmp /local -s 1 1 5 1.8 1.8 -oc 1 1 1 1024 1024 -fc 1 1 64 64 64 --clevel 8 -ft tif
 
 43 GB, 2 color

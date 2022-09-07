@@ -11,7 +11,7 @@ import numpy as np
 
 file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_rawdata.nii"
 # file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_avg_dwi.nii"
-file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_tensor.nii"
+# file = r"H:\globus\pitt\bil\yongsoo\MRI\P4_JN0167_tensor.nii"
 
 
 # #Background? Bone?

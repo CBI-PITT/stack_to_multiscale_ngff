@@ -45,7 +45,8 @@ optional = [
 
 switch = [
     (['-v', '--verbose'], 0,'count','Verbose output : additive more v = greater level of verbosity'),
-    (['-vzw', '--verify_zarr_write'], False,'store_true','Immediately verify each chunk written to disk.  Currently only works with H5_Shard_Store')
+    (['-vzw', '--verify_zarr_write'], False,'store_true','Immediately verify each chunk written to disk.  Currently only works with H5_Shard_Store'),
+    (['-sk', '--skip'], False,'store_true','skip resolution level if it already exist')
     ]
 
 for var,v_type,nargs,v_help in positional:

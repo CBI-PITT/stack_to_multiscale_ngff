@@ -48,7 +48,7 @@ class builder:
             compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
             zarr_store_type=H5_Shard_Store, tmp_dir='/local',
             verbose=False, performance_report=True, progress=False,
-            verify_zarr_write=False
+            verify_zarr_write=False, skip=False
             ):
                 
         self.in_location = in_location
@@ -68,6 +68,7 @@ class builder:
         self.performance_report = performance_report
         self.progress = progress
         self.verify_zarr_write = verify_zarr_write
+        self.skip = skip
         
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
         self.res_chunk_limit_GB = self.mem / self.cpu_cores / 4 #Fudge factor for maximizing data being processed with available memory during downsample phase
@@ -323,6 +324,11 @@ class builder:
         
     
     def write_resolution(self,res,client):
+        
+        if self.skip:
+            if os.path.exists(self.scale_name(res)):
+                print('Skipping Resolution Level {} because it already exists'.format(res))
+                return
         if res == 0:
             self.write_resolution_0(client)
             return
@@ -975,6 +981,7 @@ if __name__ == '__main__':
     fileType = args.fileType[0]
     scale = args.scale
     verify_zarr_write = args.verify_zarr_write
+    skip = args.skip
     
     compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
     
@@ -982,7 +989,7 @@ if __name__ == '__main__':
     mr = builder(in_location, out_location, fileType=fileType, 
             geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
             cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
-            verify_zarr_write=verify_zarr_write)
+            verify_zarr_write=verify_zarr_write, skip=skip)
     
     
 
