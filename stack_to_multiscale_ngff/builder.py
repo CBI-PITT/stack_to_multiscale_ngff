@@ -362,6 +362,8 @@ class builder:
                                                     z_plane_shape=test_image.shape,
                                                     chunk_limit_GB=self.res0_chunk_limit_GB)
             test_image = tiff_manager_3d(s[0],desired_chunk_depth_y=chunk_depth)
+            ## TESTING PURPOSES ONLY
+            test_image.chunks = (test_image.chunks[0],test_image.chunks[1]//2,test_image.chunks[2]*2)
             print(test_image.shape)
             print(test_image.chunks)
             
