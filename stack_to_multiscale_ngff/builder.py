@@ -12,7 +12,7 @@ from dask.delayed import delayed
 import dask.array as da
 from skimage import io, img_as_float32, img_as_float64, img_as_uint, img_as_ubyte
 # from skimage.transform import rescale, downscale_local_mean
-from skimage.filters import gaussian
+# from skimage.filters import gaussian
 from numcodecs import Blosc
 from distributed import Client, progress, performance_report
 from contextlib import contextmanager
@@ -315,12 +315,12 @@ class builder:
         print(name)
         return name
     
-    @staticmethod
-    def smooth(image):
-        working = img_as_float32(image)
-        working = gaussian(working,0.5)
-        working = img_as_uint(working)
-        return working
+    # @staticmethod
+    # def smooth(image):
+    #     working = img_as_float32(image)
+    #     working = gaussian(working,0.5)
+    #     working = img_as_uint(working)
+    #     return working
         
     
     def write_resolution(self,res,client):

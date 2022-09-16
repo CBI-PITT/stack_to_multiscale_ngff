@@ -388,6 +388,7 @@ class H5_Shard_Store(Store):
             print('_keys_fast')
         for dirpath, _, filenames in walker(path):
             relpath = os.path.relpath(dirpath, path)
+            relpath = relpath.replace("\\", "/")
             # print(dirpath)
             for f in filenames:
                 # print(f)
@@ -402,11 +403,13 @@ class H5_Shard_Store(Store):
                     dset_list = [f]
                 
                 if relpath == os.curdir:
+                    # relpath = relpath.replace("\\", "/")
                     dset_list = [os.path.join(relpath,x) for x in dset_list]
                 else:
-                    relpath = relpath.replace("\\", "/")
+                    # relpath = relpath.replace("\\", "/")
                     dset_list = ["/".join((relpath, x)) for x in dset_list]
                     # dset_list = [os.path.join(dirpath,x) for x in dset_list]
+                dset_list = [x.replace("\\", "/") for x in dset_list]
                 dset_list = [x[2:] if x[0:2] == './' else x for x in dset_list]
                 dset_list = [x[3:] if x[0:3] == '../' else x for x in dset_list]
                 yield from dset_list
