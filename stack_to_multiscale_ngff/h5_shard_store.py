@@ -33,6 +33,7 @@ import h5py
 import shutil
 import time
 import numpy as np
+import random
 
 from zarr.errors import (
     MetadataError,
@@ -51,6 +52,7 @@ from numcodecs.compat import (
 )
 # from numcodecs.registry import codec_registry
 
+from threading import Lock, RLock
 
 from zarr.util import (buffer_size, json_loads, nolock, normalize_chunks,
                        normalize_dimension_separator,
@@ -77,10 +79,24 @@ class H5_Shard_Store(Store):
 
         self.path = path
         self.normalize_keys = normalize_keys
+        self._mutex = RLock()
         self.swmr=swmr
         self.verbose = verbose #bool or int >= 1
         self.verify_write = verify_write
         self._files = ['.zarray','.zgroup','.zattrs','.zmetadata']
+
+    def __getstate__(self):
+        return (self.path, self.normalize_keys, self.swmr, self.verbose,
+                self.verify_write, self._files)
+    
+    def __setstate__(self, state):
+        (self.path, self.normalize_keys, self.swmr, self.verbose,
+         self.verify_write, self._files) = state
+        self._mutex = RLock()    
+
+
+
+
 
     def _normalize_key(self, key):
         return key.lower() if self.normalize_keys else key
@@ -138,13 +154,14 @@ class H5_Shard_Store(Store):
         while True:
             try:
                 # with h5py.File(file,'a',libver='latest',locking=True) as f:
-                with h5py.File(file,'a',libver='latest') as f:
-                    f.swmr_mode = self.swmr
-                    if key in f:
-                        if self.verbose == 2:
-                            print('Deleting existing dataset before writing new data : {}'.format(key))
-                        del f[key]
-                    f.create_dataset(key, data=data)
+                with self._mutex:
+                    with h5py.File(file,'a',libver='latest',locking=True) as f:
+                        f.swmr_mode = self.swmr
+                        if key in f:
+                            if self.verbose == 2:
+                                print('Deleting existing dataset before writing new data : {}'.format(key))
+                            del f[key]
+                        f.create_dataset(key, data=data)
                     
                 if self.verify_write:
                     from_file = self._fromfile(file,key)
@@ -159,10 +176,11 @@ class H5_Shard_Store(Store):
                 break
             except:
                 trys += 1
+                tt = random.randrange(1,10)
                 if self.verbose == 2:
-                    print('WRITE Failed for key {}, try #{} : Pausing 0.1 sec'.format(key, trys))
-                time.sleep(0.1)
-                if trys == 500:
+                    print('WRITE Failed for key {}, try #{} : Pausing {} sec'.format(key, trys,tt))
+                time.sleep(tt)
+                if trys == 36000:
                     raise
     
     def _dset_from_dirStoreFilePath(self,key):

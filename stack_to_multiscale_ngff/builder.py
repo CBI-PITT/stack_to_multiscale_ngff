@@ -356,14 +356,15 @@ class builder:
         for color in self.filesList:
             
             s = self.organize_by_groups(color,self.origionalChunkSize[2])
-            test_image = tiff_manager(s[0][0]) #2D manager
+            # test_image = tiff_manager(s[0][0]) #2D manager
             # chunk_depth = (test_image.shape[1]//4) - (test_image.shape[1]//4)%storage_chunks[3]
             # chunk_depth = self.determine_read_depth(self.origionalChunkSize,
             #                                         num_workers=self.sim_jobs,
             #                                         z_plane_shape=test_image.shape,
             #                                         chunk_limit_GB=self.res0_chunk_limit_GB)
             test_image = tiff_manager_3d(s[0])
-            optimum_chunks = utils.optimize_chunk_shape_3d(test_image.shape,test_image.chunks,test_image.dtype,self.res0_chunk_limit_GB)
+            # optimum_chunks = utils.optimize_chunk_shape_3d(test_image.shape,test_image.chunks,test_image.dtype,self.res0_chunk_limit_GB)
+            optimum_chunks = utils.optimize_chunk_shape_3d_2(test_image.shape,test_image.chunks,self.origionalChunkSize[2:],test_image.dtype,self.res0_chunk_limit_GB)
             test_image.chunks = optimum_chunks
             # ## TESTING PURPOSES ONLY
             # test_image.chunks = (test_image.chunks[0],test_image.chunks[1]//2,test_image.chunks[2]*2)
