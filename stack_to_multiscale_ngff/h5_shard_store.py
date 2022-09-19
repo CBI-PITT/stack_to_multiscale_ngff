@@ -53,6 +53,7 @@ from numcodecs.compat import (
 # from numcodecs.registry import codec_registry
 
 from threading import Lock, RLock
+# from filelock import Timeout, FileLock, SoftFileLock
 
 from zarr.util import (buffer_size, json_loads, nolock, normalize_chunks,
                        normalize_dimension_separator,
@@ -123,6 +124,7 @@ class H5_Shard_Store(Store):
             try:
                 with h5py.File(file,'r',libver='latest', swmr=self.swmr) as f:
                     if dset in f:
+                        # return f[dset][()]
                         return f[dset][()].tobytes()
                     else:
                         raise KeyError(dset)
@@ -137,6 +139,10 @@ class H5_Shard_Store(Store):
                 if trys == 500:
                     raise
 
+    
+    class LockFileError(Exception):
+        pass
+
     def _tofile(self,key, data, file):
         """ Write data to a file
         Parameters
@@ -150,31 +156,56 @@ class H5_Shard_Store(Store):
         Subclasses should overload this method to specify any custom
         file writing logic.
         """
+        # Form lock file class
+        lockfile = file+'.lock'
+        # timeout = 0.1
+        # lock = FileLock(lockfile, timeout=timeout)
+        # lock = SoftFileLock(lockfile, timeout=timeout)
+        
         trys = 0
+        lock_attempts = 0
+        is_open=False
+        complete = False
         while True:
             try:
                 # with h5py.File(file,'a',libver='latest',locking=True) as f:
-                with self._mutex:
-                    with h5py.File(file,'a',libver='latest',locking=True) as f:
-                        f.swmr_mode = self.swmr
-                        if key in f:
-                            if self.verbose == 2:
-                                print('Deleting existing dataset before writing new data : {}'.format(key))
-                            del f[key]
-                        f.create_dataset(key, data=data)
+                
+                if os.path.exists(lockfile):
+                    raise self.LockFileError('Lock File Already Present')
+                with open(lockfile,'a') as f:
+                    is_open=True
+                    pass
+                
+                with h5py.File(file,'a',libver='latest',locking=True) as f:
+                    f.swmr_mode = self.swmr
+                    if key in f:
+                        if self.verbose == 2:
+                            print('Deleting existing dataset before writing new data : {}'.format(key))
+                        del f[key]
+                    f.create_dataset(key, data=data)
+                
+                if is_open and os.path.exists(lockfile):
+                    os.remove(lockfile)
+                    is_open=False
                     
                 if self.verify_write:
                     from_file = self._fromfile(file,key)
                     # print(from_file)
                     # print(data)
                     if from_file == data.tobytes():
+                    # if from_file == data:
                         print('True')
                         pass
                     else:
                         print('errored')
                         raise KeyError(key)
-                break
-            except:
+                complete = True
+            except self.LockFileError:
+                lock_attempts += 1
+                tt = random.randrange(1,5)/10
+                print('Timeout Not Acquired Trying again in {} seconds'.format(tt))
+                time.sleep(tt)
+            except Exception:
                 trys += 1
                 tt = random.randrange(1,10)
                 if self.verbose == 2:
@@ -182,6 +213,13 @@ class H5_Shard_Store(Store):
                 time.sleep(tt)
                 if trys == 36000:
                     raise
+            finally:
+                if is_open and os.path.exists(lockfile):
+                    os.remove(lockfile)
+                if complete:
+                    break
+                is_open=False
+                
     
     def _dset_from_dirStoreFilePath(self,key):
         '''
