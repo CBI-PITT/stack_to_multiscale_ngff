@@ -342,7 +342,7 @@ class builder:
             self.max = []
             for ch in range(self.Channels):
                 # Sort by channel
-                tmp = [x for x in out if x[-1] == ch]
+                tmp = [x[-1] for x in out if x[-1][-1] == ch]
                 # Append vlues to list in channel order
                 self.min.append( min([x[0] for x in tmp]) )
                 self.max.append( max([x[1] for x in tmp]) )
@@ -517,62 +517,91 @@ class builder:
         return self.dtype_convert(canvas)
     
     
-    def fast_mean_3d_downsample(self,from_path,to_path,info,minmax=False,store=H5_Shard_Store):
-        if store == H5_Shard_Store:
-            zstore = store(from_path, verbose=self.verbose,verify_write=self.verify_zarr_write)
-            # zstore = H5_Shard_Store(from_path, verbose=self.verbose)
-        else:
-            zstore = store(from_path)
+    def fast_mean_3d_downsample(self,from_path,to_path,info,minmax=False,idx=None,store=H5_Shard_Store):
         
-        zarray = zarr.open(zstore)
+        while True:
+            correct = False
+            if store == H5_Shard_Store:
+                zstore = store(from_path, verbose=self.verbose,verify_write=self.verify_zarr_write)
+                # zstore = H5_Shard_Store(from_path, verbose=self.verbose)
+            else:
+                zstore = store(from_path)
+            
+            zarray = zarr.open(zstore)
+            
+            # print('Reading location {}'.format(info))
+            working = zarray[
+                info['t'],
+                info['c'],
+                info['z'][0][0]:info['z'][0][1],
+                info['y'][0][0]:info['y'][0][1],
+                info['x'][0][0]:info['x'][0][1]
+                ]
+            
+            # print('Read shape {}'.format(working.shape))
+            while len(working.shape) > 3:
+                working = working[0]
+            # print('Axes Removed shape {}'.format(working.shape))
+            
+            del zarray
+            del zstore
+            
+            working = self.dtype_convert(working)
+            # Calculate min/max of input data
+            if minmax:
+                min, max = working.min(),working.max()
+            working = self.pad_3d_2x(working,info,final_pad=2)
+            working = self.local_mean_3d_downsample_2x(working)
+            
+            
+            # print('Preparing to write')
+            if store == H5_Shard_Store:
+                zstore = store(to_path, verbose=self.verbose,verify_write=self.verify_zarr_write)
+                # zstore = H5Store(to_path, verbose=self.verbose)
+            else:
+                zstore = store(to_path)
+            
+            zarray = zarr.open(zstore)
+            # print(zarray.shape)
+            # print('Writing Location {}'.format(info))
+            # Write array trimmed of 1 value along all edges
+            zarray[
+                info['t'],
+                info['c'],
+                (info['z'][0][0]+info['z'][1][0])//2:(info['z'][0][1]-info['z'][1][1])//2, #Compensate for overlap in new array
+                (info['y'][0][0]+info['y'][1][0])//2:(info['y'][0][1]-info['y'][1][1])//2, #Compensate for overlap in new array
+                (info['x'][0][0]+info['x'][1][0])//2:(info['x'][0][1]-info['x'][1][1])//2  #Compensate for overlap in new array
+                ] = working[1:-1,1:-1,1:-1]
+            
+            # print('Verifying Location {}'.format(info))
+            # Imediately verify that the array was written is correctly
+            correct = np.ndarray.all(
+                zarray[
+                info['t'],
+                info['c'],
+                (info['z'][0][0]+info['z'][1][0])//2:(info['z'][0][1]-info['z'][1][1])//2, #Compensate for overlap in new array
+                (info['y'][0][0]+info['y'][1][0])//2:(info['y'][0][1]-info['y'][1][1])//2, #Compensate for overlap in new array
+                (info['x'][0][0]+info['x'][1][0])//2:(info['x'][0][1]-info['x'][1][1])//2  #Compensate for overlap in new array
+                ] == working[1:-1,1:-1,1:-1]
+                )
+            
+            del zarray
+            del zstore
         
-        print('Reading location {}'.format(info))
-        working = zarray[
-            info['t'],
-            info['c'],
-            info['z'][0][0]:info['z'][0][1],
-            info['y'][0][0]:info['y'][0][1],
-            info['x'][0][0]:info['x'][0][1]
-            ]
+            if correct:
+                print('SUCCESS : {}'.format(info))
+                break
+            else:
+                print('FAILURE : {}'.format(info))
         
-        # print('Read shape {}'.format(working.shape))
-        while len(working.shape) > 3:
-            working = working[0]
-        # print('Axes Removed shape {}'.format(working.shape))
-        
-        del zarray
-        del zstore
-        
-        working = self.dtype_convert(working)
-        # Calculate min/max of input data
-        if minmax:
-            min, max = working.min(),working.max()
-        working = self.pad_3d_2x(working,info,final_pad=2)
-        working = self.local_mean_3d_downsample_2x(working)
-        
-        
-        # print('Preparing to write')
-        if store == H5_Shard_Store:
-            zstore = store(to_path, verbose=self.verbose,verify_write=self.verify_zarr_write)
-            # zstore = H5Store(to_path, verbose=self.verbose)
-        else:
-            zstore = store(to_path)
-        
-        zarray = zarr.open(zstore)
-        # print(zarray.shape)
-        print('Writing Location {}'.format(info))
-        zarray[
-            info['t'],
-            info['c'],
-            (info['z'][0][0]+info['z'][1][0])//2:(info['z'][0][1]-info['z'][1][1])//2, #Compensate for overlap in new array
-            (info['y'][0][0]+info['y'][1][0])//2:(info['y'][0][1]-info['y'][1][1])//2, #Compensate for overlap in new array
-            (info['x'][0][0]+info['x'][1][0])//2:(info['x'][0][1]-info['x'][1][1])//2  #Compensate for overlap in new array
-            ] = working[1:-1,1:-1,1:-1] # Write array trimmed of 1 value along all edges
-        
-        if minmax:
-            return (min,max,info['c'])
-        else:
-            return
+        if correct and minmax:
+            return idx,(min,max,info['c'])
+        if correct and not minmax:
+            return idx,
+        if not correct:
+            print('Not Correct')
+            return False,
+        return False,
     
     
     def determine_chunks_size_for_downsample(self,res):
@@ -669,6 +698,8 @@ class builder:
         y_depth = new_chunks[-2] * yy
         x_depth = new_chunks[-1] * xx
         # print(z_depth)
+        idx = 0
+        idx_reference=[]
         for t in range(self.TimePoints):
             for c in range(self.Channels):
                 
@@ -692,11 +723,13 @@ class builder:
                             # working = delayed(smooth_downsample)(parent_location,out_location,1,info,store=H5Store)
                             # working = delayed(local_mean_3d_downsample)(parent_location,out_location,info,store=H5Store)
                             if res == 1:
-                                working = delayed(self.fast_mean_3d_downsample)(parent_location,out_location,info,minmax=True,store=self.zarr_store_type)
+                                working = delayed(self.fast_mean_3d_downsample)(parent_location,out_location,info,minmax=True,idx=idx,store=self.zarr_store_type)
                             else:
-                                working = delayed(self.fast_mean_3d_downsample)(parent_location,out_location,info,minmax=False,store=self.zarr_store_type)
+                                working = delayed(self.fast_mean_3d_downsample)(parent_location,out_location,info,minmax=False,idx=idx,store=self.zarr_store_type)
                             print('{},{},{},{},{}'.format(t,c,z,y,x))
                             to_run.append(working)
+                            idx_reference.append((idx,(parent_location,out_location,info)))
+                            idx+=1
             
         if self.performance_report:
             with performance_report(filename=os.path.join(self.out_location,'performance_res_{}.html'.format(res))):
@@ -710,7 +743,45 @@ class builder:
                 progress(future)
             future = client.gather(future)
         
+        future_tmp = future
         
+        while True:
+            result_idx = [x[0] for x in future]
+            reference_idx = [x[0] for x in idx_reference]
+            print('Completed # {} : Queued # {}'.format(len(result_idx),len(reference_idx)))
+            re_process = []
+            for ii in reference_idx:
+                if ii not in result_idx:
+                    tmp = [x for x in idx_reference if x[0] == ii]
+                    re_process.append(tmp[0])
+                    print('Missing {}'.format(tmp[0]))
+            if re_process == []:
+                print('None missing: continuing')
+                x = input('Enter your name:')
+                break
+            
+            idx_reference = []
+            to_run = []
+            for ii in re_process:
+                if res == 1:
+                    working = delayed(self.fast_mean_3d_downsample)(ii[1][0],ii[1][1],ii[1][2],minmax=True,idx=ii[0],store=self.zarr_store_type)
+                else:
+                    working = delayed(self.fast_mean_3d_downsample)(ii[1][0],ii[1][1],ii[1][2],minmax=False,idx=ii[0],store=self.zarr_store_type)
+                to_run.append(working)
+                idx_reference.append(ii)
+            
+            print(to_run)
+            print('requing {} jobs'.format(len(to_run)))
+            x = input('Enter your name:')
+            future = client.compute(to_run)
+            if self.progress:
+                progress(future)
+            future = client.gather(future)
+            
+            future_tmp = future_tmp + future
+            
+        future = future_tmp
+        future = [x for x in future if isinstance(x,tuple) and not isinstance(x[0],bool)]
         
         return future
     

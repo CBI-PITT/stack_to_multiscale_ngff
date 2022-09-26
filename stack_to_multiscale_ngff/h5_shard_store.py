@@ -34,6 +34,7 @@ import shutil
 import time
 import numpy as np
 import random
+import uuid
 
 from zarr.errors import (
     MetadataError,
@@ -85,6 +86,8 @@ class H5_Shard_Store(Store):
         self.verbose = verbose #bool or int >= 1
         self.verify_write = verify_write
         self._files = ['.zarray','.zgroup','.zattrs','.zmetadata']
+        self.uuid = str(uuid.uuid1())
+        
 
     def __getstate__(self):
         return (self.path, self.normalize_keys, self.swmr, self.verbose,
@@ -93,7 +96,8 @@ class H5_Shard_Store(Store):
     def __setstate__(self, state):
         (self.path, self.normalize_keys, self.swmr, self.verbose,
          self.verify_write, self._files) = state
-        self._mutex = RLock()    
+        self._mutex = RLock()   
+        self.uuid = str(uuid.uuid1())
 
 
 
@@ -122,7 +126,7 @@ class H5_Shard_Store(Store):
         trys = 0
         while True:
             try:
-                with h5py.File(file,'r',libver='latest', swmr=self.swmr) as f:
+                with h5py.File(file,'r',libver='latest', swmr=self.swmr,locking=True) as f:
                     if dset in f:
                         # return f[dset][()]
                         return f[dset][()].tobytes()
@@ -143,6 +147,13 @@ class H5_Shard_Store(Store):
     class LockFileError(Exception):
         pass
 
+    
+    def getLockFile(self,file):
+        return file+'___'+self.uuid + '.lock'
+    
+    def isLockPattern(self,file):
+        
+        
     def _tofile(self,key, data, file):
         """ Write data to a file
         Parameters
@@ -157,7 +168,7 @@ class H5_Shard_Store(Store):
         file writing logic.
         """
         # Form lock file class
-        lockfile = file+'.lock'
+        lockfile = getLockFile(file)
         # timeout = 0.1
         # lock = FileLock(lockfile, timeout=timeout)
         # lock = SoftFileLock(lockfile, timeout=timeout)
@@ -173,8 +184,9 @@ class H5_Shard_Store(Store):
                 if os.path.exists(lockfile):
                     raise self.LockFileError('Lock File Already Present')
                 with open(lockfile,'a') as f:
-                    is_open=True
                     pass
+                if os.path.exists(lockfile):
+                    is_open=True
                 
                 with h5py.File(file,'a',libver='latest',locking=True) as f:
                     f.swmr_mode = self.swmr
@@ -194,20 +206,22 @@ class H5_Shard_Store(Store):
                     # print(data)
                     if from_file == data.tobytes():
                     # if from_file == data:
-                        print('True')
+                        # print('True')
                         pass
                     else:
                         print('errored')
                         raise KeyError(key)
                 complete = True
             except self.LockFileError:
-                lock_attempts += 1
+                lock_attempts += 0.5
                 tt = random.randrange(1,5)/10
+                # tt = 1
                 print('Timeout Not Acquired Trying again in {} seconds'.format(tt))
                 time.sleep(tt)
             except Exception:
                 trys += 1
                 tt = random.randrange(1,10)
+                # tt = 0.5
                 if self.verbose == 2:
                     print('WRITE Failed for key {}, try #{} : Pausing {} sec'.format(key, trys,tt))
                 time.sleep(tt)
@@ -219,7 +233,10 @@ class H5_Shard_Store(Store):
                 if complete:
                     break
                 is_open=False
-                
+        # if complete:
+        #     return
+        # else:
+        #     return False
     
     def _dset_from_dirStoreFilePath(self,key):
         '''
@@ -329,7 +346,8 @@ class H5_Shard_Store(Store):
         
         # coerce to flat, contiguous array (ideally without copying)
         value = ensure_contiguous_ndarray(value)
-
+        
+        # result = None
         try:
             # destination path for key
             # print(h5_file)
@@ -350,6 +368,7 @@ class H5_Shard_Store(Store):
             #Write to h5 file
             try:
                 self._tofile(dset, value, file)
+                # result = self._tofile(dset, value, file)
             except:
                 pass
         except:
@@ -384,7 +403,8 @@ class H5_Shard_Store(Store):
         #     with h5py.File(file,'a',libver='latest', swmr=self.swmr) as f:
         #         del f[dset]
         else:
-            with h5py.File(file,'a',libver='latest', swmr=self.swmr) as f:
+            with h5py.File(file,'a',libver='latest', swmr=self.swmr,locking=True) as f:
+                f.swmr_mode = self.swmr
                 del f[dset]
 
     def __contains__(self, key):
@@ -402,7 +422,7 @@ class H5_Shard_Store(Store):
             return True
         try:
             if os.path.exists(file):
-                with h5py.File(file,'r',libver='latest', swmr=self.swmr) as f:
+                with h5py.File(file,'r',libver='latest', swmr=self.swmr,locking=True) as f:
                     return dset in f
         except:
             pass
@@ -452,7 +472,7 @@ class H5_Shard_Store(Store):
                     h5_file = os.path.join(dirpath,f)
                     # print(h5_file)
                     # h5_file = os.path.join(dirpath,file_path)
-                    with h5py.File(h5_file,'r',libver='latest', swmr=self.swmr) as f:
+                    with h5py.File(h5_file,'r',libver='latest', swmr=self.swmr,locking=True) as f:
                         dset_list =  list(f.keys())
                     
                 else:
@@ -492,7 +512,7 @@ class H5_Shard_Store(Store):
                     h5_file = os.path.join(dirpath,f)
                     # print(h5_file)
                     # h5_file = os.path.join(dirpath,file_path)
-                    with h5py.File(h5_file,'r',libver='latest', swmr=self.swmr) as f:
+                    with h5py.File(h5_file,'r',libver='latest', swmr=self.swmr,locking=True) as f:
                         dset_list =  list(f.keys())
                     h5_key_num = len(dset_list)
                     # print('len == {}'.format(h5_key_num))
