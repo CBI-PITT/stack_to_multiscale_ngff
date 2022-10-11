@@ -73,7 +73,8 @@ class H5_Shard_Store(Store):
     Currently, the number of axes in the zarr array must be len(zarr_array) >= 4
     """
 
-    def __init__(self, path, normalize_keys=True,swmr=True,verbose=False,verify_write=True):
+    def __init__(self, path, normalize_keys=True,swmr=True,
+                 verbose=False,verify_write=True):
 
         # guard conditions
         path = os.path.abspath(path)
