@@ -5,7 +5,7 @@ Created on Fri Oct 29 09:46:38 2021
 @author: alpha
 """
 
-import os, glob, zarr, time, math, sys, shutil
+import os, glob, zarr, time, math, sys, shutil, random
 import numpy as np
 import dask
 from dask.delayed import delayed
@@ -72,7 +72,7 @@ class builder:
         self.skip = skip
         
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
-        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 4 #Fudge factor for maximizing data being processed with available memory during downsample phase
+        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 1.5 #Fudge factor for maximizing data being processed with available memory during downsample phase
         
         # Makes store location and initial group
         # do not make a class attribute because it may not pickle when computing over dask
@@ -731,6 +731,11 @@ class builder:
                             idx_reference.append((idx,(parent_location,out_location,info)))
                             idx+=1
             
+        random.seed(42)
+        random.shuffle(to_run)
+        random.seed(42)
+        random.shuffle(idx_reference)
+        
         if self.performance_report:
             with performance_report(filename=os.path.join(self.out_location,'performance_res_{}.html'.format(res))):
                 future = client.compute(to_run)
@@ -757,7 +762,7 @@ class builder:
                     print('Missing {}'.format(tmp[0]))
             if re_process == []:
                 print('None missing: continuing')
-                x = input('Enter your name:')
+                # x = input('Enter your name:')
                 break
             
             idx_reference = []
@@ -772,7 +777,7 @@ class builder:
             
             print(to_run)
             print('requing {} jobs'.format(len(to_run)))
-            x = input('Enter your name:')
+            # x = input('Enter your name:')
             future = client.compute(to_run)
             if self.progress:
                 progress(future)

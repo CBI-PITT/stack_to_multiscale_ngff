@@ -35,6 +35,7 @@ import time
 import numpy as np
 import random
 import uuid
+import glob
 
 from zarr.errors import (
     MetadataError,
@@ -124,6 +125,7 @@ class H5_Shard_Store(Store):
         """
         # Extract Bytes from h5py
         trys = 0
+        blockedTrys = 0
         while True:
             try:
                 with h5py.File(file,'r',libver='latest', swmr=self.swmr,locking=True) as f:
@@ -135,11 +137,18 @@ class H5_Shard_Store(Store):
                 break
             except KeyError:
                 raise
+            except BlockingIOError:
+                wait = 0.5
+                blockedTrys += 1
+                print('IO Blocked during open for key {}, try #{} : Pausing {} sec'.format(dset, blockedTrys, wait))
+                time.sleep(wait)
             except:
+                wait = 0.5
                 trys += 1
+                print('READ Failed for key {}, try #{} : Pausing {} sec'.format(dset, trys, wait))
                 if self.verbose == 2:
-                    print('READ Failed for key {}, try #{} : Pausing 0.1 sec'.format(dset, trys))
-                time.sleep(0.1)
+                    print('READ Failed for key {}, try #{} : Pausing {} sec'.format(dset, trys, wait))
+                time.sleep(wait)
                 if trys == 500:
                     raise
 
@@ -151,8 +160,15 @@ class H5_Shard_Store(Store):
     def getLockFile(self,file):
         return file+'___'+self.uuid + '.lock'
     
-    def isLockPattern(self,file):
-        
+    def isFileLockedByAnotherProcess(self,file):
+        present = glob.glob(file+'___*.lock')
+        if present == []:
+            return False
+        if any([self.uuid not in x for x in present]):
+            return True
+        else:
+            return False
+            
         
     def _tofile(self,key, data, file):
         """ Write data to a file
@@ -168,7 +184,7 @@ class H5_Shard_Store(Store):
         file writing logic.
         """
         # Form lock file class
-        lockfile = getLockFile(file)
+        lockfile = self.getLockFile(file)
         # timeout = 0.1
         # lock = FileLock(lockfile, timeout=timeout)
         # lock = SoftFileLock(lockfile, timeout=timeout)
@@ -181,12 +197,18 @@ class H5_Shard_Store(Store):
             try:
                 # with h5py.File(file,'a',libver='latest',locking=True) as f:
                 
-                if os.path.exists(lockfile):
-                    raise self.LockFileError('Lock File Already Present')
+                if self.isFileLockedByAnotherProcess(file):
+                    print('File Locked by another process')
+                    raise self.LockFileError('File Locked by another process')
+                
                 with open(lockfile,'a') as f:
                     pass
                 if os.path.exists(lockfile):
+                    print('Lock file created {}'.format(lockfile))
                     is_open=True
+                else:
+                    print('Lock file was not created')
+                    raise self.LockFileError('Lock file was not created')
                 
                 with h5py.File(file,'a',libver='latest',locking=True) as f:
                     f.swmr_mode = self.swmr
@@ -214,14 +236,14 @@ class H5_Shard_Store(Store):
                 complete = True
             except self.LockFileError:
                 lock_attempts += 0.5
-                tt = random.randrange(1,5)/10
-                # tt = 1
+                # tt = random.randrange(1,5)/10
+                tt = 1
                 print('Timeout Not Acquired Trying again in {} seconds'.format(tt))
                 time.sleep(tt)
             except Exception:
                 trys += 1
-                tt = random.randrange(1,10)
-                # tt = 0.5
+                # tt = random.randrange(1,10)
+                tt = 1
                 if self.verbose == 2:
                     print('WRITE Failed for key {}, try #{} : Pausing {} sec'.format(key, trys,tt))
                 time.sleep(tt)
