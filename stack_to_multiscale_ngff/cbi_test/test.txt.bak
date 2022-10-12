@@ -1,0 +1,3 @@
+#Convert fMOST to zarr_zsharded
+
+nice -n 4 ~/anaconda3/envs/ngff/bin/python -i /CBI_FastStore/cbiPythonTools/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py '/CBI_Hive/globus/pitt/bil/fMOST RAW/CH1' '/CBI_Hive/globus/pitt/bil/fMOST RAW/CH2' '/CBI_FastStore/testData/fMOST_test_A.omezarr' -s 1 1 1 0.35 0.35 -oc 1 1 1 1024 1024 -fc 1 1 16 256 256 --clevel 1 -ft tif -tmp '/CBI_FastStore/tmpCache/zarr' -sk

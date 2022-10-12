@@ -36,6 +36,7 @@ import numpy as np
 import random
 import uuid
 import glob
+import threading
 
 from zarr.errors import (
     MetadataError,
@@ -74,14 +75,15 @@ class H5_Shard_Store(Store):
     """
 
     def __init__(self, path, normalize_keys=True,swmr=True,
-                 verbose=False,verify_write=True):
+                 verbose=False,verify_write=True,
+                 alternative_lock_file_path=None):
 
         # guard conditions
         path = os.path.abspath(path)
         if os.path.exists(path) and not os.path.isdir(path):
             raise FSPathExistNotDir(path)
 
-        self.path = path
+        self.path = path if path[-1] != '/' else path[-1]
         self.normalize_keys = normalize_keys
         self._mutex = RLock()
         self.swmr=swmr
@@ -89,15 +91,19 @@ class H5_Shard_Store(Store):
         self.verify_write = verify_write
         self._files = ['.zarray','.zgroup','.zattrs','.zmetadata']
         self.uuid = str(uuid.uuid1())
+        if alternative_lock_file_path is None:
+            self.alternative_lock_file_path = alternative_lock_file_path
+        else:
+            self.alternative_lock_file_path = alternative_lock_file_path if alternative_lock_file_path[-1] != '/' else alternative_lock_file_path[-1]
         
 
     def __getstate__(self):
         return (self.path, self.normalize_keys, self.swmr, self.verbose,
-                self.verify_write, self._files)
+                self.verify_write, self._files, self.alternative_lock_file_path)
     
     def __setstate__(self, state):
         (self.path, self.normalize_keys, self.swmr, self.verbose,
-         self.verify_write, self._files) = state
+         self.verify_write, self._files, self.alternative_lock_file_path) = state
         self._mutex = RLock()   
         self.uuid = str(uuid.uuid1())
 
@@ -159,13 +165,22 @@ class H5_Shard_Store(Store):
 
     
     def getLockFile(self,file):
-        return file+'___'+self.uuid + '.lock'
+        if isinstance(self.alternative_lock_file_path,str):
+            file = file.replace(self.path,self.alternative_lock_file_path)
+            # print('New Lockfile Location: {}'.format(file))
+        try:
+            ident = threading.get_ident()
+            return file+'___'+self.uuid + '_' + str(ident) + '.lock'
+        except:
+            return file+'___'+self.uuid + '.lock'
     
     def isFileLockedByAnotherProcess(self,file):
         present = glob.glob(file+'___*.lock')
         if present == []:
             return False
-        if any([self.uuid not in x for x in present]):
+        # if any([self.uuid not in x for x in present]):
+        lockName = self.getLockFile(file)
+        if any([lockName not in x for x in present]):
             return True
         else:
             return False
@@ -202,6 +217,8 @@ class H5_Shard_Store(Store):
                     print('File Locked by another process')
                     raise self.LockFileError('File Locked by another process')
                 
+                if isinstance(self.alternative_lock_file_path,str) and not os.path.exists(os.path.split(lockfile)[0]):
+                    os.makedirs(os.path.split(lockfile)[0],exist_ok=True)
                 with open(lockfile,'a') as f:
                     pass
                 if os.path.exists(lockfile):

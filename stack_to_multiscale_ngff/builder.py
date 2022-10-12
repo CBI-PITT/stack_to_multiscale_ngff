@@ -49,7 +49,8 @@ class builder:
             compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
             zarr_store_type=H5_Shard_Store, tmp_dir='/local',
             verbose=False, performance_report=True, progress=False,
-            verify_zarr_write=False, skip=False
+            verify_zarr_write=False, skip=False,
+            downSampType='mean'
             ):
                 
         self.in_location = in_location
@@ -70,6 +71,7 @@ class builder:
         self.progress = progress
         self.verify_zarr_write = verify_zarr_write
         self.skip = skip
+        self.downSampType = downSampType
         
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
         self.res_chunk_limit_GB = self.mem / self.cpu_cores / 1.5 #Fudge factor for maximizing data being processed with available memory during downsample phase
@@ -77,7 +79,7 @@ class builder:
         # Makes store location and initial group
         # do not make a class attribute because it may not pickle when computing over dask
         if self.zarr_store_type == H5_Shard_Store:
-            store = self.zarr_store_type(self.out_location,verbose=self.verbose)
+            store = self.zarr_store_type(self.out_location,verbose=self.verbose,alternative_lock_file_path=self.tmp_dir)
         else:
             store = self.zarr_store_type(self.out_location)
         store = zarr.open(store)
@@ -304,7 +306,7 @@ class builder:
     def get_store(self,res):
         if self.zarr_store_type == H5_Shard_Store:
             print('Getting H5Store')
-            store = self.zarr_store_type(self.scale_name(res),verbose=self.verbose,verify_write=self.verify_zarr_write)
+            store = self.zarr_store_type(self.scale_name(res),verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
             # store = H5Store(self.scale_name(res),verbose=2)
         else:
             print('Getting Other Store')
@@ -516,13 +518,26 @@ class builder:
         canvas /= 8
         return self.dtype_convert(canvas)
     
+    # def local_max_3d_downsample(self,image):
+    #     # dtype = image.dtype
+    #     # print(image.shape)
+        
+    #     # print(canvas.shape)
+    #     arrays = []
+    #     for z,y,x in product(range(2),range(2),range(2)):
+    #         arrays.append(image[z::2,y::2,x::2][0:canvas.shape[0]-1,0:canvas.shape[1]-1,0:canvas.shape[2]-1])
+    #         # print(tmp.shape)
+    #     arrays = np.stack(arrays)
+    #     arrays = np.max(arrays,axis=0)
+            
+    #     return self.dtype_convert(arrays)
     
     def fast_mean_3d_downsample(self,from_path,to_path,info,minmax=False,idx=None,store=H5_Shard_Store):
         
         while True:
             correct = False
             if store == H5_Shard_Store:
-                zstore = store(from_path, verbose=self.verbose,verify_write=self.verify_zarr_write)
+                zstore = store(from_path, verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
                 # zstore = H5_Shard_Store(from_path, verbose=self.verbose)
             else:
                 zstore = store(from_path)
@@ -556,7 +571,7 @@ class builder:
             
             # print('Preparing to write')
             if store == H5_Shard_Store:
-                zstore = store(to_path, verbose=self.verbose,verify_write=self.verify_zarr_write)
+                zstore = store(to_path, verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
                 # zstore = H5Store(to_path, verbose=self.verbose)
             else:
                 zstore = store(to_path)
