@@ -210,13 +210,15 @@ class H5_Shard_Store(Store):
         while True:
             try:
                     
+                if os.path.exists(lockfile):
+                    raise self.LockFileError('Lock file already exists')
                 try:
                     # Attempt to take the lock file
                     with open(lockfile,'x') as f:
                         is_open=True
                         pass
                 except Exception:
-                    raise self.LockFileError('Lock file was not created')
+                    raise self.LockFileError('Lock file could not be created')
                 
                 
                 with h5py.File(file,'a',libver='latest',locking=True) as f:
