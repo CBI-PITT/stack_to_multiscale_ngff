@@ -164,15 +164,24 @@ class H5_Shard_Store(Store):
         pass
 
     
+    # def getLockFile(self,file):
+    #     if isinstance(self.alternative_lock_file_path,str):
+    #         file = file.replace(self.path,self.alternative_lock_file_path)
+    #         # print('New Lockfile Location: {}'.format(file))
+    #     try:
+    #         ident = threading.get_ident()
+    #         return file+'___'+self.uuid + '_' + str(ident) + '.lock'
+    #     except:
+    #         return file+'___'+self.uuid + '.lock'
+    
     def getLockFile(self,file):
         if isinstance(self.alternative_lock_file_path,str):
             file = file.replace(self.path,self.alternative_lock_file_path)
-            # print('New Lockfile Location: {}'.format(file))
-        try:
-            ident = threading.get_ident()
-            return file+'___'+self.uuid + '_' + str(ident) + '.lock'
-        except:
-            return file+'___'+self.uuid + '.lock'
+            dirPath = os.path.split(file)[0]
+            if not os.path.exists(dirPath):
+                os.makedirs(dirPath,exist_ok=True)
+        
+        return '{}.lock'.format(file)
     
     def isFileLockedByAnotherProcess(self,file):
         present = glob.glob(file+'___*.lock')
@@ -201,7 +210,7 @@ class H5_Shard_Store(Store):
         """
         # Form lock file class
         # lockfile = self.getLockFile(file)
-        lockfile = '{}.lock'.format(file)
+        lockfile = self.getLockFile(file)
         
         trys = 0
         lock_attempts = 0
