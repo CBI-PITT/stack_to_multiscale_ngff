@@ -200,10 +200,8 @@ class H5_Shard_Store(Store):
         file writing logic.
         """
         # Form lock file class
-        lockfile = self.getLockFile(file)
-        # timeout = 0.1
-        # lock = FileLock(lockfile, timeout=timeout)
-        # lock = SoftFileLock(lockfile, timeout=timeout)
+        # lockfile = self.getLockFile(file)
+        lockfile = '{}.lock'.format(file)
         
         trys = 0
         lock_attempts = 0
@@ -211,22 +209,15 @@ class H5_Shard_Store(Store):
         complete = False
         while True:
             try:
-                # with h5py.File(file,'a',libver='latest',locking=True) as f:
-                
-                if self.isFileLockedByAnotherProcess(file):
-                    print('File Locked by another process')
-                    raise self.LockFileError('File Locked by another process')
-                
-                if isinstance(self.alternative_lock_file_path,str) and not os.path.exists(os.path.split(lockfile)[0]):
-                    os.makedirs(os.path.split(lockfile)[0],exist_ok=True)
-                with open(lockfile,'a') as f:
-                    pass
-                if os.path.exists(lockfile):
-                    print('Lock file created {}'.format(lockfile))
-                    is_open=True
-                else:
-                    print('Lock file was not created')
+                    
+                try:
+                    # Attempt to take the lock file
+                    with open(lockfile,'x') as f:
+                        is_open=True
+                        pass
+                except Exception:
                     raise self.LockFileError('Lock file was not created')
+                
                 
                 with h5py.File(file,'a',libver='latest',locking=True) as f:
                     f.swmr_mode = self.swmr
@@ -253,10 +244,10 @@ class H5_Shard_Store(Store):
                         raise KeyError(key)
                 complete = True
             except self.LockFileError:
-                lock_attempts += 0.5
+                lock_attempts += 1
                 # tt = random.randrange(1,5)/10
-                tt = 1
-                print('Timeout Not Acquired Trying again in {} seconds'.format(tt))
+                tt = 0.1
+                print('Lock File Not Acquired Trying again in {} seconds : trys {}'.format(tt,lock_attempts))
                 time.sleep(tt)
             except Exception:
                 trys += 1
