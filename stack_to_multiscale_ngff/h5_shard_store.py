@@ -37,6 +37,7 @@ import random
 import uuid
 import glob
 import threading
+import datetime
 
 from zarr.errors import (
     MetadataError,
@@ -149,7 +150,7 @@ class H5_Shard_Store(Store):
                 blockedTrys += 1
                 print('IO Blocked during open for key {}, try #{} : Pausing {} sec'.format(dset, blockedTrys, wait))
                 time.sleep(wait)
-            except:
+            except Exception:
                 wait = 0.5
                 trys += 1
                 print('READ Failed for key {}, try #{} : Pausing {} sec'.format(dset, trys, wait))
@@ -218,7 +219,6 @@ class H5_Shard_Store(Store):
         complete = False
         while True:
             try:
-                    
                 if os.path.exists(lockfile):
                     raise self.LockFileError('Lock file already exists')
                 try:
@@ -254,12 +254,25 @@ class H5_Shard_Store(Store):
                         print('errored')
                         raise KeyError(key)
                 complete = True
+            
             except self.LockFileError:
                 lock_attempts += 1
                 # tt = random.randrange(1,5)/10
                 tt = 0.1
                 print('Lock File Not Acquired Trying again in {} seconds : trys {}'.format(tt,lock_attempts))
                 time.sleep(tt)
+                
+                # Look for stuck lockfile and delete if older than 5 minutes
+                if not lock_attempts%20:
+                    a = datetime.datetime.today() - datetime.datetime.fromtimestamp(os.path.getmtime(lockfile))
+                    # 5 minutes lockfile tollerance before deleting
+                    try:
+                        if a.seconds >= 300:
+                            print('{} file is older than 5 minutes: deleting'.format(lockfile))
+                            os.remove(lockfile)
+                    except Exception:
+                        pass
+            
             except Exception:
                 trys += 1
                 # tt = random.randrange(1,10)
@@ -269,16 +282,16 @@ class H5_Shard_Store(Store):
                 time.sleep(tt)
                 if trys == 36000:
                     raise
+            
             finally:
-                if is_open and os.path.exists(lockfile):
-                    os.remove(lockfile)
-                if complete:
-                    break
+                try:
+                    if is_open and os.path.exists(lockfile):
+                        os.remove(lockfile)
+                    if complete:
+                        break
+                except Exception:
+                    pass
                 is_open=False
-        # if complete:
-        #     return
-        # else:
-        #     return False
     
     def _dset_from_dirStoreFilePath(self,key):
         '''

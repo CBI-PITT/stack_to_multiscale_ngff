@@ -1062,96 +1062,117 @@ class builder:
 
 if __name__ == '__main__':
     
-    start = time.time()
-    
-    args = parser.parse_args()
-    print(args)
-    in_location = args.input
-    if len(in_location) == 1:
-        in_location = in_location[0]
-    out_location = args.output[0]
-    
-    origionalChunkSize = args.origionalChunkSize
-    finalChunkSize = args.finalChunkSize
-    cpu = args.cpu[0]
-    mem = args.mem[0]
-    verbose = args.verbose
-    tmp_dir = args.tmpLocation[0]
-    fileType = args.fileType[0]
-    scale = args.scale
-    verify_zarr_write = args.verify_zarr_write
-    skip = args.skip
-    
-    compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
-    
-    
-    mr = builder(in_location, out_location, fileType=fileType, 
-            geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
-            cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
-            verify_zarr_write=verify_zarr_write, skip=skip)
-    
-    
-
-    
-    
-    # print(in_location)
-    # print(out_location)
-    # exit()
-    
-    # in_location = 'h:/globus/pitt/bil/TEST'
-    
-    # out_location = 'z:/testData/test_zarr'
-    
-    # in_location = '/CBI_Hive/globus/pitt/bil/TEST'
-    
-    # out_location = '/CBI_FastStore/testData/test_zarr2'
+    try:
+        start = time.time()
+        
+        args = parser.parse_args()
+        print(args)
+        in_location = args.input
+        if len(in_location) == 1:
+            in_location = in_location[0]
+        out_location = args.output[0]
+        
+        origionalChunkSize = args.origionalChunkSize
+        finalChunkSize = args.finalChunkSize
+        cpu = args.cpu[0]
+        mem = args.mem[0]
+        verbose = args.verbose
+        tmp_dir = args.tmpLocation[0]
+        fileType = args.fileType[0]
+        scale = args.scale
+        verify_zarr_write = args.verify_zarr_write
+        skip = args.skip
+        
+        compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
+        
+        
+        mr = builder(in_location, out_location, fileType=fileType, 
+                geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
+                cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
+                verify_zarr_write=verify_zarr_write, skip=skip)
+        
         
     
-    # # mr = builder(in_location,out_location,tmp_dir='/bil/users/awatson/test_conv/tmp')
-    # mr = builder(in_location,out_location,fileType=fileType,tmp_dir=tmp_dir,)
-    
-    
-    # # 4 workers per core = 20 workers with lnode of 80 cores
-    # # 4 Threads per workers
-    with dask.config.set({'temporary_directory': mr.tmp_dir}):
-            
-        # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
-        # with Client(n_workers=8,threads_per_worker=2) as client:
-        workers = mr.workers
-        threads = mr.sim_jobs
-        # os.environ["DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT"] = "60s"
-        # os.environ["DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP"] = "60s"
-        # os.environ["DASK_DISTRIBUTED__DEPLOY__LOST_WORKER"] = "60s"
         
-        #https://github.com/dask/distributed/blob/main/distributed/distributed.yaml#L129-L131
-        os.environ["DISTRIBUTED__COMM__TIMEOUTS__CONNECT"] = "60s"
-        os.environ["DISTRIBUTED__COMM__TIMEOUTS__TCP"] = "60s"
-        os.environ["DISTRIBUTED__DEPLOY__LOST_WORKER"] = "60s"
-        print('workers {}, threads {}, mem {}, chunk_size_limit {}'.format(workers, threads, mr.mem, mr.res0_chunk_limit_GB))
-        # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
-        with Client(n_workers=workers,threads_per_worker=threads) as client:
+        
+        # print(in_location)
+        # print(out_location)
+        # exit()
+        
+        # in_location = 'h:/globus/pitt/bil/TEST'
+        
+        # out_location = 'z:/testData/test_zarr'
+        
+        # in_location = '/CBI_Hive/globus/pitt/bil/TEST'
+        
+        # out_location = '/CBI_FastStore/testData/test_zarr2'
             
-            mr.write_resolution_series(client)
-            # mr.down_samp(1,client)
+        
+        # # mr = builder(in_location,out_location,tmp_dir='/bil/users/awatson/test_conv/tmp')
+        # mr = builder(in_location,out_location,fileType=fileType,tmp_dir=tmp_dir,)
+        
+        
+        # # 4 workers per core = 20 workers with lnode of 80 cores
+        # # 4 Threads per workers
+        with dask.config.set({'temporary_directory': mr.tmp_dir}):
+                
+            # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
+            # with Client(n_workers=8,threads_per_worker=2) as client:
+            workers = mr.workers
+            threads = mr.sim_jobs
+            # os.environ["DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT"] = "60s"
+            # os.environ["DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP"] = "60s"
+            # os.environ["DASK_DISTRIBUTED__DEPLOY__LOST_WORKER"] = "60s"
             
-            # Need to take the min/max data collected during res1 creation and edit zattrs
+            #https://github.com/dask/distributed/blob/main/distributed/distributed.yaml#L129-L131
+            os.environ["DISTRIBUTED__COMM__TIMEOUTS__CONNECT"] = "60s"
+            os.environ["DISTRIBUTED__COMM__TIMEOUTS__TCP"] = "60s"
+            os.environ["DISTRIBUTED__DEPLOY__LOST_WORKER"] = "60s"
+            print('workers {}, threads {}, mem {}, chunk_size_limit {}'.format(workers, threads, mr.mem, mr.res0_chunk_limit_GB))
+            # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
+            with Client(n_workers=workers,threads_per_worker=threads) as client:
+                
+                mr.write_resolution_series(client)
+                # mr.down_samp(1,client)
+                
+                # Need to take the min/max data collected during res1 creation and edit zattrs
+    finally:
+        #Cleanup
+        while True:
+            print('Cleaning up tmp dir and orphaned lock files')
+            try:
+                #Remove any existing files in the temp_dir
+                filelist = glob.glob(os.path.join(mr.tmp_dir, "**/*"), recursive=True)
+                for f in filelist:
+                    try:
+                        if os.path.isfile(f):
+                            os.remove(f)
+                        elif os.path.isdir(f):
+                            shutil.rmtree(f)
+                    except Exception:
+                        pass
+                    
+                #Remove any .lock files in the output directory (recursive)
+                lockList = glob.glob(os.path.join(mr.out_location, "**/*.lock"), recursive=True)
+                for f in lockList:
+                    try:
+                        if os.path.isfile(f):
+                            os.remove(f)
+                        elif os.path.isdir(f):
+                            shutil.rmtree(f)
+                    except Exception:
+                        pass
+                break
+            except KeyboardInterrupt:
+                pass
+            except Exception:
+                pass
+            
     
-    #Clean up
-    #Remove any existing files
-    filelist = glob.glob(os.path.join(mr.tmp_dir, "**/**"))
-    for f in filelist:
-        try:
-            if os.path.isfile(f):
-                os.remove(f)
-            elif os.path.isdir(f):
-                shutil.rmtree(f)
-        except Exception:
-            pass
-
-    stop = time.time()
-    print((stop - start)/60/60)
-    
-    sys.exit(0)
+        stop = time.time()
+        print((stop - start)/60/60)
+        
+        sys.exit(0)
     
 ## https://download.brainimagelibrary.org/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
 ## /bil/data/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
