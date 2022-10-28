@@ -150,7 +150,7 @@ class H5_Shard_Store(Store):
                 blockedTrys += 1
                 print('IO Blocked during open for key {}, try #{} : Pausing {} sec'.format(dset, blockedTrys, wait))
                 time.sleep(wait)
-            except Exception:
+            except:
                 wait = 0.5
                 trys += 1
                 print('READ Failed for key {}, try #{} : Pausing {} sec'.format(dset, trys, wait))
@@ -226,7 +226,7 @@ class H5_Shard_Store(Store):
                     with open(lockfile,'x') as f:
                         is_open=True
                         pass
-                except Exception:
+                except:
                     raise self.LockFileError('Lock file could not be created')
                 
                 
@@ -270,10 +270,10 @@ class H5_Shard_Store(Store):
                         if a.seconds >= 300:
                             print('{} file is older than 5 minutes: deleting'.format(lockfile))
                             os.remove(lockfile)
-                    except Exception:
+                    except:
                         pass
             
-            except Exception:
+            except:
                 trys += 1
                 # tt = random.randrange(1,10)
                 tt = 1
@@ -289,7 +289,7 @@ class H5_Shard_Store(Store):
                         os.remove(lockfile)
                     if complete:
                         break
-                except Exception:
+                except:
                     pass
                 is_open=False
     
