@@ -29,8 +29,9 @@ Fails on big datasets due to dask getting bogged down
 Working with sef-contained delayed frunction, but small number of threads makes it slow
 2x downsamples only
 '''
-
+from zarr.storage import DirectoryStore, NestedDirectoryStore
 from stack_to_multiscale_ngff.h5_shard_store import H5_Shard_Store
+from stack_to_multiscale_ngff.archived_nested_store import Archived_Nested_Store
 from stack_to_multiscale_ngff.tiff_manager import tiff_manager, tiff_manager_3d
 from stack_to_multiscale_ngff.arg_parser import parser
 from stack_to_multiscale_ngff import utils
@@ -39,6 +40,14 @@ from stack_to_multiscale_ngff import utils
 # Note that attempts to determine the amount of free mem does not work for SLURM allocation
 # This parameter must be set manually when submitting jobs to reduce the risk of overrunning
 # RAM allocation
+
+#Not used
+def block_location_extracter(block_info=None):
+    '''
+    Takes block_info from dask.array.map_blocks and returns list of tuples
+    which indicates the index in the first input array.
+    '''
+    return block_info[0]['array-location']
 
 class builder:
     
@@ -291,26 +300,38 @@ class builder:
         raise TypeError("No Matching dtype : Conversion not possible")
         
     
-    def write_resolution_series(self,client):
+    def write_resolution_series(self):
         '''
         Make downsampled versions of dataset based on pyramidMap
         Requies that a dask.distribuited client be passed for parallel processing
         '''
         for res in range(len(self.pyramidMap)):
-            self.write_resolution(res,client)
+            with Client(n_workers=self.workers,threads_per_worker=self.sim_jobs) as client:
+                self.write_resolution(res,client)
             
     
     def open_store(self,res):
         return zarr.open(self.get_store(res))
     
     def get_store(self,res):
+        return self.get_store_from_path(self.scale_name(res))
+        # if self.zarr_store_type == H5_Shard_Store:
+        #     print('Getting H5Store')
+        #     store = self.zarr_store_type(self.scale_name(res),verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
+        #     # store = H5Store(self.scale_name(res),verbose=2)
+        # else:
+        #     print('Getting Other Store')
+        #     store = self.zarr_store_type(self.scale_name(res))
+        # return store
+    
+    def get_store_from_path(self,path):
         if self.zarr_store_type == H5_Shard_Store:
-            print('Getting H5Store')
-            store = self.zarr_store_type(self.scale_name(res),verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
+            # print('Getting H5Store')
+            store = self.zarr_store_type(path,verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
             # store = H5Store(self.scale_name(res),verbose=2)
         else:
-            print('Getting Other Store')
-            store = self.zarr_store_type(self.scale_name(res))
+            # print('Getting Other Store')
+            store = self.zarr_store_type(path)
         return store
     
     def scale_name(self,res):
@@ -518,29 +539,35 @@ class builder:
         canvas /= 8
         return self.dtype_convert(canvas)
     
-    # def local_max_3d_downsample(self,image):
-    #     # dtype = image.dtype
-    #     # print(image.shape)
+    def local_max_3d_downsample(self,image):
+        canvas = np.zeros(
+            (image.shape[0]//2,
+            image.shape[1]//2,
+            image.shape[2]//2),
+            dtype = image.dtype
+            )
         
-    #     # print(canvas.shape)
-    #     arrays = []
-    #     for z,y,x in product(range(2),range(2),range(2)):
-    #         arrays.append(image[z::2,y::2,x::2][0:canvas.shape[0]-1,0:canvas.shape[1]-1,0:canvas.shape[2]-1])
-    #         # print(tmp.shape)
-    #     arrays = np.stack(arrays)
-    #     arrays = np.max(arrays,axis=0)
+        canvas_tmp = canvas.copy()
+        
+        # print(canvas.shape)
+        for z,y,x in product(range(2),range(2),range(2)):
+            tmp = image[z::2,y::2,x::2][0:canvas.shape[0]-1,0:canvas.shape[1]-1,0:canvas.shape[2]-1]
+            # print(tmp.shape)
+            canvas_tmp[0:tmp.shape[0],0:tmp.shape[1],0:tmp.shape[2]] = tmp
+            np.maximum(canvas,canvas_tmp,out=canvas)
             
-    #     return self.dtype_convert(arrays)
+        return self.dtype_convert(canvas)
     
     def fast_mean_3d_downsample(self,from_path,to_path,info,minmax=False,idx=None,store=H5_Shard_Store):
         
         while True:
             correct = False
-            if store == H5_Shard_Store:
-                zstore = store(from_path, verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
-                # zstore = H5_Shard_Store(from_path, verbose=self.verbose)
-            else:
-                zstore = store(from_path)
+            zstore = self.get_store_from_path(from_path)
+            # if store == H5_Shard_Store:
+            #     zstore = store(from_path, verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
+            #     # zstore = H5_Shard_Store(from_path, verbose=self.verbose)
+            # else:
+            #     zstore = store(from_path)
             
             zarray = zarr.open(zstore)
             
@@ -570,11 +597,12 @@ class builder:
             
             
             # print('Preparing to write')
-            if store == H5_Shard_Store:
-                zstore = store(to_path, verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
-                # zstore = H5Store(to_path, verbose=self.verbose)
-            else:
-                zstore = store(to_path)
+            zstore = self.get_store_from_path(to_path)
+            # if store == H5_Shard_Store:
+            #     zstore = store(to_path, verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
+            #     # zstore = H5Store(to_path, verbose=self.verbose)
+            # else:
+            #     zstore = store(to_path)
             
             zarray = zarr.open(zstore)
             # print(zarray.shape)
@@ -810,7 +838,11 @@ class builder:
     
     def build_zattrs(self):
         
-        store = self.zarr_store_type(self.out_location,verbose=1)
+        store = self.get_store_from_path(self.out_location)
+        # if self.zarr_store_type == H5_Shard_Store:
+        #     store = self.zarr_store_type(self.out_location,verbose=1)
+        # else:
+        #     store = self.zarr_store_type(self.out_location)
         r = zarr.open(store)
         print(r)
         
@@ -947,7 +979,8 @@ class builder:
         return
     
     def edit_omero_channels(self,channel_num,attr_name,new_value):
-        store = self.zarr_store_type(self.out_location,verbose=1)
+        # store = self.zarr_store_type(self.out_location,verbose=1)
+        store = self.get_store_from_path(self.out_location)
         r = zarr.open(store)
         
         omero = r.attrs['omero']
@@ -962,7 +995,11 @@ class builder:
         
     
     def get_omero_attr(self,attr_name):
-        store = self.zarr_store_type(self.out_location,verbose=1)
+        store = self.get_store_from_path(self.out_location)
+        # if self.zarr_store_type == H5_Shard_Store:
+        #     store = self.zarr_store_type(self.out_location,verbose=1)
+        # else:
+        #     store = self.zarr_store_type(self.out_location)
         r = zarr.open(store)
         
         omero = r.attrs['omero']
@@ -1086,11 +1123,17 @@ if __name__ == '__main__':
         compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
         
         
+        # mr = builder(in_location, out_location, fileType=fileType, 
+        #         geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
+        #         cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
+        #         verify_zarr_write=verify_zarr_write, skip=skip)
+        
         mr = builder(in_location, out_location, fileType=fileType, 
                 geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
                 cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
+                # zarr_store_type=NestedDirectoryStore,
+                zarr_store_type=Archived_Nested_Store,
                 verify_zarr_write=verify_zarr_write, skip=skip)
-        
         
     
         
@@ -1130,12 +1173,17 @@ if __name__ == '__main__':
             os.environ["DISTRIBUTED__DEPLOY__LOST_WORKER"] = "60s"
             print('workers {}, threads {}, mem {}, chunk_size_limit {}'.format(workers, threads, mr.mem, mr.res0_chunk_limit_GB))
             # with Client(n_workers=workers,threads_per_worker=threads,memory_target_fraction=0.95,memory_limit='60GB') as client:
-            with Client(n_workers=workers,threads_per_worker=threads) as client:
-                
-                mr.write_resolution_series(client)
-                # mr.down_samp(1,client)
+            # with Client(n_workers=workers,threads_per_worker=threads) as client:
+            
+            mr.write_resolution_series()
+            # mr.write_resolution_series(client)
+            # mr.down_samp(1,client)
                 
                 # Need to take the min/max data collected during res1 creation and edit zattrs
+        if mr.zarr_store_type == Archived_Nested_Store:
+            for r in reversed(list(range(len(mr.pyramidMap)))):
+                mr.get_store(r).consolidate()
+            
     finally:
         #Cleanup
         while True:
