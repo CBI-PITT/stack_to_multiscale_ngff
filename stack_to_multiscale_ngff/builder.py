@@ -83,7 +83,7 @@ class builder:
         self.downSampType = downSampType
         
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
-        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 3 #Fudge factor for maximizing data being processed with available memory during downsample phase
+        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during downsample phase
         
         # Makes store location and initial group
         # do not make a class attribute because it may not pickle when computing over dask
@@ -709,7 +709,29 @@ class builder:
         
         return z,y,x
         
+    @staticmethod
+    def compute_batch(list_of_delayed,batch_size,client):
         
+        processing = []
+        finished = []
+        total_to_process = len(list_of_delayed)
+        idx = 0
+        while len(list_of_delayed) > 0:
+            a = list_of_delayed.pop()
+            a = client.compute(a)
+            processing.append(a)
+            del a
+            idx += 1
+            print('Computing {} of {}'.format(idx,total_to_process))
+            
+            while len(processing) >= batch_size or (len(processing) > 0 and len(list_of_delayed) == 0):
+                test = [x.status == 'finished' for x in processing]
+                finished_new = [p for p,t in zip(processing,test) if t]
+                processing = [p for p,t in zip(processing,test) if not t]
+                finished = finished + finished_new
+                del finished_new
+                time.sleep(0.1)
+        return client.gather(finished)
     
     def down_samp(self,res,client):
         
@@ -780,18 +802,21 @@ class builder:
         random.shuffle(to_run)
         random.seed(42)
         random.shuffle(idx_reference)
+        print('Computing {} chunks'.format(len(to_run)))
         
         if self.performance_report:
             with performance_report(filename=os.path.join(self.out_location,'performance_res_{}.html'.format(res))):
-                future = client.compute(to_run)
-                if self.progress:
-                    progress(future)
-                future = client.gather(future)
+                future = self.compute_batch(to_run,self.cpu_cores*2,client)
+                # future = client.compute(to_run)
+                # if self.progress:
+                #     progress(future)
+                # future = client.gather(future)
         else:
-            future = client.compute(to_run)
-            if self.progress:
-                progress(future)
-            future = client.gather(future)
+            future = self.compute_batch(to_run,self.cpu_cores*2,client)
+            # future = client.compute(to_run)
+            # if self.progress:
+            #     progress(future)
+            # future = client.gather(future)
         
         future_tmp = future
         
