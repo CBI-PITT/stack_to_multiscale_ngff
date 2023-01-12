@@ -83,7 +83,7 @@ class builder:
         self.downSampType = downSampType
         
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
-        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during downsample phase
+        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 3 #Fudge factor for maximizing data being processed with available memory during downsample phase
         
         # Makes store location and initial group
         # do not make a class attribute because it may not pickle when computing over dask
@@ -728,10 +728,11 @@ class builder:
                 test = [x.status == 'finished' for x in processing]
                 finished_new = [p for p,t in zip(processing,test) if t]
                 processing = [p for p,t in zip(processing,test) if not t]
+                finished_new = client.gather(finished_new)
                 finished = finished + finished_new
                 del finished_new
                 time.sleep(0.1)
-        return client.gather(finished)
+        return finished
     
     def down_samp(self,res,client):
         
@@ -806,7 +807,7 @@ class builder:
         
         if self.performance_report:
             with performance_report(filename=os.path.join(self.out_location,'performance_res_{}.html'.format(res))):
-                future = self.compute_batch(to_run,self.cpu_cores*2,client)
+                future = self.compute_batch(to_run,round(self.cpu_cores*2),client)
                 # future = client.compute(to_run)
                 # if self.progress:
                 #     progress(future)
