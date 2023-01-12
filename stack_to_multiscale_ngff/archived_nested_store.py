@@ -214,7 +214,7 @@ class Archived_Nested_Store(Store):
             a.writestr(key,value)
             
     def path_depth(self,path):
-        startinglevel = self.path.count(os.sep) #Normanization happens at __init__
+        startinglevel = self.path.count(os.sep) #Normalization happens at __init__
         totallevel = path.count(os.sep)
         # totallevel = os.path.normpath(path).count(os.sep)
         return totallevel - startinglevel
@@ -317,6 +317,7 @@ class Archived_Nested_Store(Store):
                 print('Delaying {}'.format(unique))
                 d = delayed(self._migrate_path_to_archive)(archive,path_name)
                 to_run.append(d)
+                del d
             else:
                 self._migrate_path_to_archive(archive,path_name)
             
@@ -410,7 +411,7 @@ class Archived_Nested_Store(Store):
                         print('Renaming {} to {}'.format(filepath,newname))
                         shutil.move(filepath,newname)
         
-        #Clean empry directories
+        #Clean empty directories
         for root, folder, files in os.walk(self.path,topdown=False):
             for f in folder:
                 filepath = os.path.join(root,f)
@@ -439,10 +440,15 @@ class Archived_Nested_Store(Store):
                 return self._fromZip(archive,key)
             except KeyError:
                 pass
+            except:
+                pass
         
         #Attempt to read file from archive
         if os.path.isfile(archive):
-            return self._fromZip(archive,key)
+            try:
+                return self._fromZip(archive,key)
+            except:
+                pass
         
         #KeyError if neither RAW file nor key found in archive(s)
         raise KeyError(key)
