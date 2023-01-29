@@ -19,6 +19,8 @@ from contextlib import contextmanager
 from itertools import product
 import psutil
 
+from natsort import natsorted as sorted
+
 # import h5py
 # import hdf5plugin
 
@@ -222,11 +224,26 @@ class builder:
         '''
         out_shape = self.shape_3d
         chunk = self.origionalChunkSize[2:]
+        final_chunk_size = self.finalChunkSize[2:]
         
         pyramidMap = {0:[out_shape,chunk]}
         
-        chunk_change = (4,0.5,0.5)
-        final_chunk_size = self.finalChunkSize[2:]
+        # Make sure chunks are adjusted in the approriate way
+        # ie getting bigger or smaller with each level
+        chunk_change = []
+        for s,f in zip(chunk,final_chunk_size):
+            if s > f:
+                chunk_change.append(0.5)
+            elif s < f:
+                chunk_change.append(2)
+            elif s == f:
+                chunk_change.append(1)
+        
+        chunk_change = tuple(chunk_change)
+        print(chunk_change)
+        # chunk_change = (4,0.5,0.5)
+        # chunk_change = (2,2,2)
+        
         
         
         current_pyramid_level = 0
@@ -242,11 +259,28 @@ class builder:
                 chunk_change[2]*pyramidMap[current_pyramid_level-1][1][2]
                 )
             chunk = [int(x) for x in chunk]
-            chunk = (
-                chunk[0] if chunk[0] <= final_chunk_size[0] else final_chunk_size[0],
-                chunk[1] if chunk[1] >= final_chunk_size[1] else final_chunk_size[1],
-                chunk[2] if chunk[2] >= final_chunk_size[2] else final_chunk_size[2]
-                )
+            
+            
+            tmpChunk = []
+            for idx,c in enumerate(chunk_change):
+                if c > 1:
+                    tmpChunk.append(
+                        chunk[idx] if chunk[idx] <= final_chunk_size[idx] else final_chunk_size[idx]
+                        )
+                elif c < 1:
+                    tmpChunk.append(
+                        chunk[idx] if chunk[idx] >= final_chunk_size[idx] else final_chunk_size[idx]
+                        )
+                elif c == 1:
+                    tmpChunk.append(
+                        chunk[idx]
+                        )
+            chunk = tuple(tmpChunk)
+            # chunk = (
+            #     chunk[0] if chunk[0] >= final_chunk_size[0] else final_chunk_size[0],
+            #     chunk[1] if chunk[1] >= final_chunk_size[1] else final_chunk_size[1],
+            #     chunk[2] if chunk[2] >= final_chunk_size[2] else final_chunk_size[2]
+            #     )
             pyramidMap[current_pyramid_level] = [out_shape,chunk]
                 
             print((out_shape,chunk))
@@ -258,14 +292,31 @@ class builder:
             #     del pyramidMap[current_pyramid_level]
             #     break
             
-            # stop if any shape dimension is below 1 then delete pyramid level
+            # stop = False
+            # for idx,c in enumerate(chunk_change):
+            #     if c > 1:
+            #         if chunk[idx] > out_shape[idx]:
+            #             stop = True
+            #     elif c < 1:
+            #         # if out_shape[idx] < chunk[idx]:
+            #         #     stop = True
+            #         if chunk[idx] > out_shape[idx]:
+            #             stop = True
+            # if stop:
+            #     # del pyramidMap[current_pyramid_level]
+            #     break
+            if any([c>s for c,s in zip(chunk,out_shape)]):
+                # del pyramidMap[current_pyramid_level]
+                break
+            
+            # stop if any shape dimension is below 1 then delete pyramid level            
             if any([x<2 for x in out_shape]):
                 del pyramidMap[current_pyramid_level]
                 break
             
-            # stop if an x or y dim is less than chunk shape
-            if any([x<y for x,y in zip(out_shape[1:],chunk[1:])]):
-                break
+            # # stop if an x or y dim is less than chunk shape
+            # if any([x<y for x,y in zip(out_shape[1:],chunk[1:])]):
+            #     break
         
             
         # for key in pyramidMap:
@@ -561,7 +612,7 @@ class builder:
     def fast_mean_3d_downsample(self,from_path,to_path,info,minmax=False,idx=None,store=H5_Shard_Store):
         
         while True:
-            correct = False
+            verify = True
             zstore = self.get_store_from_path(from_path)
             # if store == H5_Shard_Store:
             #     zstore = store(from_path, verbose=self.verbose,verify_write=self.verify_zarr_write,alternative_lock_file_path=self.tmp_dir)
@@ -616,19 +667,24 @@ class builder:
                 (info['x'][0][0]+info['x'][1][0])//2:(info['x'][0][1]-info['x'][1][1])//2  #Compensate for overlap in new array
                 ] = working[1:-1,1:-1,1:-1]
             
-            # print('Verifying Location {}'.format(info))
-            # Imediately verify that the array was written is correctly
-            # correct = np.ndarray.all(
-            #     zarray[
-            #     info['t'],
-            #     info['c'],
-            #     (info['z'][0][0]+info['z'][1][0])//2:(info['z'][0][1]-info['z'][1][1])//2, #Compensate for overlap in new array
-            #     (info['y'][0][0]+info['y'][1][0])//2:(info['y'][0][1]-info['y'][1][1])//2, #Compensate for overlap in new array
-            #     (info['x'][0][0]+info['x'][1][0])//2:(info['x'][0][1]-info['x'][1][1])//2  #Compensate for overlap in new array
-            #     ] == working[1:-1,1:-1,1:-1]
-            #     )
-            ## To bypass the immediate verification
-            correct = True
+            verify = True
+            #Imediately verify that the array was written is correctly
+            if verify:
+                print('Verifying Location {}'.format(info))
+                del zarray
+                zarray = zarr.open(zstore,'r')
+                correct = np.ndarray.all(
+                    zarray[
+                    info['t'],
+                    info['c'],
+                    (info['z'][0][0]+info['z'][1][0])//2:(info['z'][0][1]-info['z'][1][1])//2, #Compensate for overlap in new array
+                    (info['y'][0][0]+info['y'][1][0])//2:(info['y'][0][1]-info['y'][1][1])//2, #Compensate for overlap in new array
+                    (info['x'][0][0]+info['x'][1][0])//2:(info['x'][0][1]-info['x'][1][1])//2  #Compensate for overlap in new array
+                    ] == working[1:-1,1:-1,1:-1]
+                    )
+            else:
+                # To bypass the immediate verification
+                correct = True
             
             del zarray
             del zstore
@@ -637,7 +693,7 @@ class builder:
                 print('SUCCESS : {}'.format(info))
                 break
             else:
-                print('FAILURE : {}'.format(info))
+                print('FAILURE : RETRY {}'.format(info))
         
         if correct and minmax:
             return idx,(min,max,info['c'])
