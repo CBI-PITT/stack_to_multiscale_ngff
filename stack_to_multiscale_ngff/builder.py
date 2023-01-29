@@ -57,7 +57,7 @@ class builder:
             self,in_location,out_location,fileType='tif',
             geometry=(1,0.35,0.35),origionalChunkSize=(1,1,1,1024,1024),finalChunkSize=(1,1,16,256,256),
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
-            compressor=Blosc(cname='zstd', clevel=9, shuffle=Blosc.BITSHUFFLE),
+            compressor=Blosc(cname='zstd', clevel=5, shuffle=Blosc.SHUFFLE),
             zarr_store_type=H5_Shard_Store, tmp_dir='/local',
             verbose=False, performance_report=True, progress=False,
             verify_zarr_write=False, skip=False,
