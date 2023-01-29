@@ -869,7 +869,7 @@ class builder:
                 #     progress(future)
                 # future = client.gather(future)
         else:
-            future = self.compute_batch(to_run,self.cpu_cores*2,client)
+            future = self.compute_batch(to_run,round(self.cpu_cores*1.25),client)
             # future = client.compute(to_run)
             # if self.progress:
             #     progress(future)
