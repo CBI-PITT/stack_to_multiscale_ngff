@@ -863,7 +863,7 @@ class builder:
         
         if self.performance_report:
             with performance_report(filename=os.path.join(self.out_location,'performance_res_{}.html'.format(res))):
-                future = self.compute_batch(to_run,round(self.cpu_cores*2),client)
+                future = self.compute_batch(to_run,round(self.cpu_cores*1.25),client)
                 # future = client.compute(to_run)
                 # if self.progress:
                 #     progress(future)
