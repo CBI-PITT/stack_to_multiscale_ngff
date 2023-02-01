@@ -1240,7 +1240,8 @@ if __name__ == '__main__':
         
         # # 4 workers per core = 20 workers with lnode of 80 cores
         # # 4 Threads per workers
-        with dask.config.set({'temporary_directory': mr.tmp_dir}):
+        with dask.config.set({'temporary_directory': mr.tmp_dir, #<<-Chance dask working directory
+                              'logging.distributed': 'error'}):  #<<-Disable WARNING messages that are often not helpful (remove for debugging)
                 
             # with Client(n_workers=sim_jobs,threads_per_worker=os.cpu_count()//sim_jobs) as client:
             # with Client(n_workers=8,threads_per_worker=2) as client:
