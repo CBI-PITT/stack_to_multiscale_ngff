@@ -644,7 +644,8 @@ class builder:
             if minmax:
                 min, max = working.min(),working.max()
             working = self.pad_3d_2x(working,info,final_pad=2)
-            working = self.local_mean_3d_downsample_2x(working)
+            # working = self.local_mean_3d_downsample_2x(working)
+            working = self.local_max_3d_downsample(working)
             
             
             # print('Preparing to write')
