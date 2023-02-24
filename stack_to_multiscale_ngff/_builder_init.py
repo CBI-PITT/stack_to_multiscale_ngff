@@ -89,6 +89,9 @@ class builder(_builder_downsample,
         filesList = []
         if isinstance(self.in_location, str) and os.path.splitext(self.in_location)[-1] == '.nii':
             filesList.append(self.nifti_unpacker(self.in_location))
+
+        elif isinstance(self.in_location, str) and self.fileType == 'jp2':
+            filesList = self.jp2_unpacker(natsorted(glob.glob(os.path.join(self.in_location,'*.{}'.format(self.fileType)))))
         
         elif isinstance(self.in_location,(list,tuple)):
             # Can designate each directory with image files
