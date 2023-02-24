@@ -9,12 +9,18 @@ import os, glob, time, sys, shutil
 import dask
 from numcodecs import Blosc
 
+# ## Fix to deal with fussy
+# from PIL import Image, ImageFile
+# Image.MAX_IMAGE_PIXELS = 2000000000
+# ImageFile.LOAD_TRUNCATED_IMAGES = False
+
 # Import the main class that orchistrates building the multscale ome-zarr
 from stack_to_multiscale_ngff._builder_init import builder
 
 # Import custom zarr store types
 from stack_to_multiscale_ngff.h5_shard_store import H5_Shard_Store
 from stack_to_multiscale_ngff.archived_nested_store import Archived_Nested_Store
+from stack_to_multiscale_ngff.h5_nested_store import H5_Nested_Store
 
 # Import local functions
 from stack_to_multiscale_ngff.arg_parser import parser
@@ -57,7 +63,8 @@ if __name__ == '__main__':
                 geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
                 cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
                 # zarr_store_type=NestedDirectoryStore,
-                zarr_store_type=Archived_Nested_Store,
+                # zarr_store_type=Archived_Nested_Store,
+                zarr_store_type=H5_Nested_Store,
                 verify_zarr_write=verify_zarr_write, skip=skip)
         
     
@@ -83,7 +90,7 @@ if __name__ == '__main__':
             mr.write_resolution_series()
                 
                 # Need to take the min/max data collected during res1 creation and edit zattrs
-        if mr.zarr_store_type == Archived_Nested_Store:
+        if mr.zarr_store_type == Archived_Nested_Store or mr.zarr_store_type == H5_Nested_Store:
             for r in reversed(list(range(len(mr.pyramidMap)))):
                 mr.get_store(r).consolidate()
             

@@ -41,8 +41,7 @@ import glob
 import threading
 import datetime
 import re
-
-from zipfile import ZipFile
+import h5py
 
 from zarr.errors import (
     MetadataError,
@@ -77,7 +76,7 @@ from zarr._storage.store import Store, array_meta_key
 
 _prog_number = re.compile(r'^\d+$')
 
-class Archived_Nested_Store(Store):
+class H5_Nested_Store(Store):
     """Storage class using directories and files on a standard file system.
     Parameters
     ----------
@@ -126,7 +125,8 @@ class Archived_Nested_Store(Store):
     """
 
     def __init__(self, path, normalize_keys=False, dimension_separator=None, 
-                 consolidate=False, consolidate_depth=3, consolidate_parallel=True):
+                 consolidate=False, consolidate_depth=3, consolidate_parallel=True, swmr=True,
+                 container_ext='.h5'):
 
         # guard conditions
         path = os.path.abspath(path)
@@ -147,6 +147,8 @@ class Archived_Nested_Store(Store):
         if self._consolidate:
             self.consolidate()
             self._consolidate = False
+        self.swmr = swmr
+        self.container_ext = container_ext
         
         
     def _normalize_key(self, key):
@@ -184,34 +186,32 @@ class Archived_Nested_Store(Store):
         with open(fn, mode='wb') as f:
             f.write(a)
 
-    # def __getitem__(self, key):
-    #     key = self._normalize_key(key)
-    #     filepath = os.path.join(self.path, key)
-    #     if os.path.isfile(filepath):
-    #         return self._fromfile(filepath)
-    #     else:
-    #         raise KeyError(key)
-    
-    @staticmethod
-    def _get_archive_key_name(path):
+    def _get_archive_key_name(self,path):
         path, last = os.path.split(path)
         path, first = os.path.split(path)
         path, archive = os.path.split(path)
-        archive = '{}/{}'.format(path,archive + '.zip')
+        archive = '{}/{}'.format(path,archive + self.container_ext)
         return archive, '{}/{}'.format(first,last)
         
     @staticmethod
-    def _fromZip(archive,key):
-        with ZipFile(archive,'r') as a:
-            with a.open(key,'r') as myfile: #Raise KeyError if key does not exist
-                return myfile.read()
+    def _fromh5(archive,key):
+        with h5py.File(archive, 'r', libver='latest', swmr=self.swmr) as f:
+            if key in f:
+                # return f[key].tobytes()
+                return f[key][()].tobytes()
+            else:
+                raise KeyError(dset)
     
     @staticmethod
-    def _toZip(archive,key,value):
+    def _toh5(archive,key,value):
         if isinstance(value,np.ndarray):
             value = value.tobytes()
-        with ZipFile(archive,'a') as a:
-            a.writestr(key,value)
+        with h5py.File(archive, 'a', libver='latest', locking=True) as f:
+            f.swmr_mode = self.swmr
+            if key in f:
+                del f[key]
+            f.create_dataset(key, data=np.void(value))
+            # f.create_dataset(key, data=value)
             
     def path_depth(self,path):
         startinglevel = self.path.count(os.sep) #Normalization happens at __init__
@@ -231,15 +231,11 @@ class Archived_Nested_Store(Store):
                 # print(filepath)
                 if os.path.splitext(filepath)[-1] == '' \
                     and self.path_depth(filepath) >= self._consolidate_depth:
-                # if self.path_depth(filepath) >= self._consolidate_depth:
-                # if not '.zip' in filepath:
+
                     archive,key = self._get_archive_key_name(filepath)
                     if archive not in unique_archive_locations:
                         unique_archive_locations[archive] = None
                         yield archive
-            # else:
-            #     #First resust yields the 
-            #     past_first = True
     
     def _migrate_path_to_archive(self,archive,path_name):
         '''
@@ -249,58 +245,24 @@ class Archived_Nested_Store(Store):
         # path_name = os.path.splitext(path)[0]
         # archive = path + '.tmp'
         print('Moving chunk files into {}'.format(archive))
-        with ZipFile(archive,'a') as zfile:
-            for root, folder, files in os.walk(path_name,topdown=True):
+        with h5py.File(archive, 'a', libver='latest', locking=True) as h:
+            h.swmr_mode = self.swmr
+            for root, folder, files in os.walk(path_name, topdown=True):
                 for f in files:
                     filepath = os.path.join(root,f)
                     _ ,key = self._get_archive_key_name(filepath)
                     # print('Copying {} to {}'.format(filepath,archive))
                     #Write RAW chunk to tmp archive
-                    zfile.write(filename=filepath,arcname=key)
+                    with open(filepath,'rb') as fp:
+                        print(key)
+                        if key in h:
+                            del h[key]
+                        h.create_dataset(key, data=np.void(fp.read()))
                     #Delete RAW chunk
                     os.remove(filepath)
     
     def consolidate(self):
-        
-        # #Move RAW chunk first to .zip.tmp
-        # for root, folder, files in os.walk(self.path,topdown=True):
-        #     for f in files:
-        #         filepath = os.path.join(root,f)
-                
-        #         if '.zip' not in filepath and self.path_depth(filepath) >= self._consolidate_depth:
-                    
-        #             archive,key = self._get_archive_key_name(filepath)
-        #             archive = archive + '.tmp'
-        #             print('Copying {} to {}'.format(filepath,archive))
-        #             with ZipFile(archive,'a') as zfile:
-        #                 zfile.write(filename=filepath,arcname=key)
-        #             # ZipFile.write(filename, arcname=None, compress_type=None, compresslevel=None)
-        #             #Write RAW chunk to tmp archive
-        #             # self._toZip(archive,key,self._fromfile(filepath))
-        #             #Delete RAW chunk
-        #             os.remove(filepath)
-        # for idx,unique in enumerate(self.get_unique_archive_locations()):
-        #     print(unique)
-        #     if idx==20:
-        #         break
-        
-    # ## WORKING
-    # #Move RAW chunk first to .zip.tmp
-    #     for unique in self.get_unique_archive_locations():
-    #         path_name = os.path.splitext(unique)[0]
-    #         archive = unique + '.tmp'
-    #         print('Moving chunk files into {}'.format(archive))
-    #         with ZipFile(archive,'a') as zfile:
-    #             for root, folder, files in os.walk(path_name,topdown=True):
-    #                 for f in files:
-    #                     filepath = os.path.join(root,f)
-    #                     _ ,key = self._get_archive_key_name(filepath)
-    #                     # print('Copying {} to {}'.format(filepath,archive))
-    #                     #Write RAW chunk to tmp archive
-    #                     zfile.write(filename=filepath,arcname=key)
-    #                     #Delete RAW chunk
-    #                     os.remove(filepath)
-        
+
         par = False
         try:
             import dask
@@ -328,83 +290,31 @@ class Archived_Nested_Store(Store):
         # for root, folder, files in os.walk(self.path,topdown=True):
         #     for f in files:
         #         filepath = os.path.join(root,f)
-                
-        #         if os.path.splitext(filepath)[-1] == '.tmp':
-        #             pass
-                
-        #         elif os.path.splitext(filepath)[-1] == '.zip':
-        #             #Test for whether paths that may incude raw chunks exist
-        #             #Future tests may verify whether raw chunks do exist
-        #             if os.path.isdir(os.path.splitext(filepath)[0]):
-        #                 tmp_archive = filepath + '.tmp'
-        #                 tmp_names = ZipFile(tmp_archive,'a').namelist()
-        #                 #Copy over all contents of .zip to .zip.tmp
-        #                 for key in ZipFile(filepath).namelist():
-        #                     if key not in tmp_names:
-        #                         print('Migrating {} to {}'.format(key,tmp_archive))
-        #                         value = self._fromZip(filepath,key)
-        #                         self._toZip(tmp_archive,key,value)
+        #
+        #         # if os.path.splitext(filepath)[-1] == '.tmp':
+        #         #     pass
+        #
+        #         if os.path.splitext(filepath)[-1] == self.container_ext:
+        #             tmp_archive = filepath + '.tmp'
+        #
+        #             if os.path.exists(tmp_archive):
+        #                 #Test for whether paths that may incude raw chunks exist
+        #                 #Future tests may verify whether raw chunks do exist
+        #                 with ZipFile(tmp_archive,'a') as ztmp:
+        #                     tmp_names = ztmp.namelist()
+        #                     with ZipFile(filepath,'r') as zfile:
+        #                         for key in zfile.namelist():
+        #                             if key not in tmp_names:
+        #                                 print('Migrating key {} to {}'.format(key,tmp_archive))
+        #                                 with zfile.open(key,'r') as mf: #Raise KeyError if key does not exist
+        #                                     value = mf.read()
+        #                                 ztmp.writestr(key,value)
         #                 os.remove(filepath)
         
-        #Move RAW chunk first to .zip.tmp
+        #Rename self.container_ext.tmp to self.container_ext
         for root, folder, files in os.walk(self.path,topdown=True):
             for f in files:
-                filepath = os.path.join(root,f)
-                
-                # if os.path.splitext(filepath)[-1] == '.tmp':
-                #     pass
-                
-                if os.path.splitext(filepath)[-1] == '.zip':
-                    tmp_archive = filepath + '.tmp'
-                    
-                    if os.path.exists(tmp_archive):
-                        #Test for whether paths that may incude raw chunks exist
-                        #Future tests may verify whether raw chunks do exist
-                        with ZipFile(tmp_archive,'a') as ztmp:
-                            tmp_names = ztmp.namelist()
-                            with ZipFile(filepath,'r') as zfile:
-                                for key in zfile.namelist():
-                                    if key not in tmp_names:
-                                        print('Migrating key {} to {}'.format(key,tmp_archive))
-                                        with zfile.open(key,'r') as mf: #Raise KeyError if key does not exist
-                                            value = mf.read()
-                                        ztmp.writestr(key,value)
-                        os.remove(filepath)
-                
-        # for unique in self.get_unique_archive_locations():
-        #     if os.path.exists(unique):
-        #         tmp_path = unique + '.tmp'
-                
-        #             if os.path.exists(tmp_path):
-        #                 path_name = os.path.splitext(unique)[0]
-        #                 tmp_path = path_name + '.tmp'
-                        
-        #                 if os.path.exists(tmp_path) and os.path.exists(unique):
-        #                     for root, folder, files in os.walk(path_name,topdown=True):
-        #                         for f in files:
-        #                             filepath = os.path.join(root,f)
-                            
-        #                             if os.path.splitext(filepath)[-1] == '.tmp':
-        #                                 pass
-                                    
-        #                             elif os.path.splitext(filepath)[-1] == '.zip':
-        #                                 #Test for whether paths that may incude raw chunks exist
-        #                                 #Future tests may verify whether raw chunks do exist
-        #                                 if os.path.isdir(os.path.splitext(filepath)[0]):
-        #                                     tmp_archive = filepath + '.tmp'
-        #                                     tmp_names = ZipFile(tmp_archive,'a').namelist()
-        #                                     #Copy over all contents of .zip to .zip.tmp
-        #                                     for key in ZipFile(filepath).namelist():
-        #                                         if key not in tmp_names:
-        #                                             print('Migrating {} to {}'.format(key,tmp_archive))
-        #                                             value = self._fromZip(filepath,key)
-        #                                             self._toZip(tmp_archive,key,value)
-        #                                     os.remove(filepath)
-        
-        #Rename .zip.tmp to .zip
-        for root, folder, files in os.walk(self.path,topdown=True):
-            for f in files:
-                if '.zip.tmp' in f:
+                if f'{self.container_ext}.tmp' in f:
                     filepath = os.path.join(root,f)
                     newname = os.path.splitext(filepath)[0]
                     if not os.path.exists(newname):
@@ -437,7 +347,7 @@ class Archived_Nested_Store(Store):
         tmp_archive = archive +'.tmp'
         if os.path.isfile(tmp_archive):
             try:
-                return self._fromZip(archive,key)
+                return self._fromh5(archive,key)
             except KeyError:
                 pass
             except:
@@ -446,7 +356,7 @@ class Archived_Nested_Store(Store):
         #Attempt to read file from archive
         if os.path.isfile(archive):
             try:
-                return self._fromZip(archive,key)
+                return self._fromh5(archive,key)
             except:
                 pass
         
@@ -530,11 +440,12 @@ class Archived_Nested_Store(Store):
     
     @staticmethod
     def _get_zip_keys(archive):
-        with ZipFile(archive,'r') as zfile:
-            return zfile.namelist()
+        with h5py.File(archive, 'r', libver='latest', swmr=self.swmr) as f:
+            return [key for key in f.keys()]
     
     def _zip_contains(self,archive,key):
-        return key in self._get_zip_keys(archive)
+        with h5py.File(archive, 'r', libver='latest', swmr=self.swmr) as f:
+            return key in f
         
     def __eq__(self, other):
         return (
@@ -556,11 +467,11 @@ class Archived_Nested_Store(Store):
                 dirpath = dirpath.replace("\\", "/")
                 for f in filenames:
                     basefile, ext = os.path.splitext(f)
-                    if ext == '.zip':
+                    if ext == self.container_ext:
                         names = self._get_zip_keys(f)
                         names = ["/".join((dirpath, basefile,x)) for x in names]
                         yield from names
-                    elif ext == '.tmp' and os.path.splitext(basefile)[-1] == '.zip':
+                    elif ext == '.tmp' and os.path.splitext(basefile)[-1] == self.container_ext:
                         basefile, ext = os.path.splitext(basefile)
                         names = self._get_zip_keys(f)
                         names = ["/".join((dirpath, basefile,x)) for x in names]
