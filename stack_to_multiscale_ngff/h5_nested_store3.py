@@ -62,7 +62,7 @@ from numcodecs.compat import (
 
 # from numcodecs.registry import codec_registry
 
-from threading import Lock, RLock
+# from threading import Lock, RLock
 # from filelock import Timeout, FileLock, SoftFileLock
 
 from zarr.util import (buffer_size, json_loads, nolock, normalize_chunks,
@@ -126,7 +126,7 @@ class H5_Nested_Store(Store):
 
     def __init__(self, path, normalize_keys=False, dimension_separator=None, 
                  consolidate=False, consolidate_depth=3, consolidate_parallel=True, swmr=True,
-                 container_ext='.h5'):
+                 container_ext='.h5', write_direct=False, distribuited_lock=True):
 
         # guard conditions
         path = os.path.abspath(path)
@@ -141,16 +141,50 @@ class H5_Nested_Store(Store):
             raise ValueError(
                 "Archived_Nested_Store only supports '/' as dimension_separator")
         self._dimension_separator = dimension_separator
+        self.swmr = swmr
+        self.container_ext = container_ext
+
+        self._write_direct = write_direct
+        if self._write_direct and distribuited_lock:
+            try:
+                from distributed import Lock, get_client
+                self.Lock = Lock
+                self.dist_client = get_client()
+                self.distribuited = True
+            except:
+                self.dist_client = None
+                self.distribuited = False
+        else:
+            self.dist_client = None
+            self.distribuited = False
+
         self._consolidate_depth = consolidate_depth
         self._consolidate = consolidate
         self._consolidate_parallel = consolidate_parallel
         if self._consolidate:
             self.consolidate()
             self._consolidate = False
-        self.swmr = swmr
-        self.container_ext = container_ext
-        
-        
+
+    def __getstate__(self):
+        return (self.path, self.normalize_keys, self._dimension_separator, self.swmr, self.container_ext,
+                self._write_direct,self.distribuited)
+
+    def __setstate__(self, state):
+        (self.path, self.normalize_keys, self._dimension_separator, self.swmr, self.container_ext,
+         self._write_direct, self.distribuited) = state
+        if self._write_direct and self.distribuited:
+            try:
+                from distributed import Lock, get_client
+                self.Lock = Lock
+                self.dist_client = get_client()
+                self.distribuited = True
+            except:
+                self.dist_client = None
+                self.distribuited = False
+        else:
+            self.dist_client = None
+            self.distribuited = False
+
     def _normalize_key(self, key):
             return key.lower() if self.normalize_keys else key
     
@@ -191,7 +225,7 @@ class H5_Nested_Store(Store):
         path, first = os.path.split(path)
         path, archive = os.path.split(path)
         archive = '{}/{}'.format(path,archive + self.container_ext)
-        return archive, '{}/{}'.format(first,last)
+        return archive, '{}.{}'.format(first,last)
 
     def _fromh5(self,archive,key):
         # print('In _fromh5')
@@ -207,12 +241,18 @@ class H5_Nested_Store(Store):
     def _toh5(self,archive,key,value):
         if isinstance(value,np.ndarray):
             value = value.tobytes()
-        with h5py.File(archive, 'a', libver='latest', locking=True) as f:
-            f.swmr_mode = self.swmr
-            if key in f:
-                del f[key]
-            f.create_dataset(key, data=np.void(value))
-            # f.create_dataset(key, data=value)
+        while True:
+            # Attempt to catch OSError which sometimes occurs if the h5 file is already open for read only.
+            try:
+                with h5py.File(archive, 'a', libver='latest', locking=True) as f:
+                    f.swmr_mode = self.swmr
+                    if key in f:
+                        del f[key]
+                    f.create_dataset(key, data=np.void(value))
+                    # f.create_dataset(key, data=value)
+                break
+            except OSError:
+                pass
             
     def path_depth(self,path):
         startinglevel = self.path.count(os.sep) #Normalization happens at __init__
@@ -240,11 +280,10 @@ class H5_Nested_Store(Store):
     
     def _migrate_path_to_archive(self,archive,path_name):
         '''
-        Given an archive name and path, migrate all files under the 
-        path to the archive
+        Given a H5 name and path, migrate all files under the
+        path into the H5 file
         '''
-        # path_name = os.path.splitext(path)[0]
-        # archive = path + '.tmp'
+
         print('Moving chunk files into {}'.format(archive))
         with h5py.File(archive, 'a', libver='latest', locking=True) as h:
             h.swmr_mode = self.swmr
@@ -253,10 +292,11 @@ class H5_Nested_Store(Store):
                     filepath = os.path.join(root,f)
                     _ ,key = self._get_archive_key_name(filepath)
                     # print('Copying {} to {}'.format(filepath,archive))
-                    #Write RAW chunk to tmp archive
+                    #Write RAW chunk into H5
                     with open(filepath,'rb') as fp:
-                        print(key)
+                        # print(key)
                         if key in h:
+                            print(f'Deleting preexisting {key}')
                             del h[key]
                         h.create_dataset(key, data=np.void(fp.read()))
                     #Delete RAW chunk
@@ -275,7 +315,7 @@ class H5_Nested_Store(Store):
         
         for unique in self.get_unique_archive_locations():
             path_name = os.path.splitext(unique)[0]
-            archive = unique + '.tmp'
+            archive = unique
             if par:
                 print('Delaying {}'.format(unique))
                 d = delayed(self._migrate_path_to_archive)(archive,path_name)
@@ -286,41 +326,6 @@ class H5_Nested_Store(Store):
             
         if par:
             to_run = dask.compute(to_run)
-        
-        # #Move RAW chunk first to .zip.tmp
-        # for root, folder, files in os.walk(self.path,topdown=True):
-        #     for f in files:
-        #         filepath = os.path.join(root,f)
-        #
-        #         # if os.path.splitext(filepath)[-1] == '.tmp':
-        #         #     pass
-        #
-        #         if os.path.splitext(filepath)[-1] == self.container_ext:
-        #             tmp_archive = filepath + '.tmp'
-        #
-        #             if os.path.exists(tmp_archive):
-        #                 #Test for whether paths that may incude raw chunks exist
-        #                 #Future tests may verify whether raw chunks do exist
-        #                 with ZipFile(tmp_archive,'a') as ztmp:
-        #                     tmp_names = ztmp.namelist()
-        #                     with ZipFile(filepath,'r') as zfile:
-        #                         for key in zfile.namelist():
-        #                             if key not in tmp_names:
-        #                                 print('Migrating key {} to {}'.format(key,tmp_archive))
-        #                                 with zfile.open(key,'r') as mf: #Raise KeyError if key does not exist
-        #                                     value = mf.read()
-        #                                 ztmp.writestr(key,value)
-        #                 os.remove(filepath)
-        
-        #Rename self.container_ext.tmp to self.container_ext
-        for root, folder, files in os.walk(self.path,topdown=True):
-            for f in files:
-                if f'{self.container_ext}.tmp' in f:
-                    filepath = os.path.join(root,f)
-                    newname = os.path.splitext(filepath)[0]
-                    if not os.path.exists(newname):
-                        print('Renaming {} to {}'.format(filepath,newname))
-                        shutil.move(filepath,newname)
         
         #Clean empty directories
         for root, folder, files in os.walk(self.path,topdown=False):
@@ -346,18 +351,7 @@ class H5_Nested_Store(Store):
         
         archive, key = self._get_archive_key_name(filepath)
         
-        #Check if a temporary archive exists and look for key here
-        tmp_archive = archive +'.tmp'
-        if os.path.isfile(tmp_archive):
-            # print('In read tmp')
-            try:
-                return self._fromh5(archive,key)
-            except KeyError:
-                pass
-            except:
-                pass
-        
-        #Attempt to read file from archive
+        #Attempt to read file from H5
         if os.path.isfile(archive):
             # print('In read archive')
             try:
@@ -365,9 +359,43 @@ class H5_Nested_Store(Store):
             except:
                 pass
         
-        #KeyError if neither RAW file nor key found in archive(s)
+        #KeyError if neither RAW file nor key found in H5
         # print('Raising Key Error')
         raise KeyError(key)
+
+    import time
+    @staticmethod
+    def _timedelta(start,delta=5):
+        return time.time()-start >= delta
+
+    def _write_direct_to_h5(self,archive,key,value):
+        '''
+        Directly write chunks to h5 file. If distribuited locking is
+        enabled, use it; else no external locking.
+
+        h5py locking is enabled by default, making it thread safe, but is may not be
+        multiprocess safe if distribuited locking is disabled.
+        '''
+        archive, key = self._get_archive_key_name(file_path)
+        os.makedirs(os.path.split(archive)[0], exist_ok=True)
+        if self.distribuited:
+            try:
+                lock = self.Lock(archive)
+                start = time.time()
+                while not lock.acquire(blocking=False) and not self._timedelta(start, delta=10):
+                    # print(f'Waiting for lock {time.time()-start}')
+                    pass
+                # print(f'Locking {archive}')
+                self._toh5(archive, key, value)
+            except Exception as e:
+                print(e)
+                pass
+            finally:
+                lock.release()
+                # print(f'Releasing {archive}')
+        else:
+            self._toh5(archive, key, value)
+        return
 
     def __setitem__(self, key, value):
         key = self._normalize_key(key)
@@ -377,6 +405,11 @@ class H5_Nested_Store(Store):
 
         # destination path for key
         file_path = os.path.join(self.path, key)
+
+        # Write direct if enabled:
+        if self._write_direct and not '.' in key:
+            self._write_direct_to_h5(archive, key, value)
+
 
         # ensure there is no directory in the way
         if os.path.isdir(file_path):
@@ -430,12 +463,6 @@ class H5_Nested_Store(Store):
             return True
         
         archive, key = self._get_archive_key_name(file_path)
-        
-        #Check if a temporary archive exists and look for key here
-        tmp_archive = archive +'.tmp'
-        if os.path.isfile(tmp_archive):
-            if self._zip_contains(tmp_archive,key):
-                return True
                 
         if os.path.isfile(archive):
             if self._zip_contains(archive,key):

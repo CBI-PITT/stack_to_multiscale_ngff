@@ -240,11 +240,10 @@ class H5_Nested_Store(Store):
     
     def _migrate_path_to_archive(self,archive,path_name):
         '''
-        Given an archive name and path, migrate all files under the 
-        path to the archive
+        Given a H5 name and path, migrate all files under the
+        path into the H5 file
         '''
-        # path_name = os.path.splitext(path)[0]
-        # archive = path + '.tmp'
+
         print('Moving chunk files into {}'.format(archive))
         with h5py.File(archive, 'a', libver='latest', locking=True) as h:
             h.swmr_mode = self.swmr
@@ -253,10 +252,11 @@ class H5_Nested_Store(Store):
                     filepath = os.path.join(root,f)
                     _ ,key = self._get_archive_key_name(filepath)
                     # print('Copying {} to {}'.format(filepath,archive))
-                    #Write RAW chunk to tmp archive
+                    #Write RAW chunk into H5
                     with open(filepath,'rb') as fp:
                         print(key)
                         if key in h:
+                            print(f'Deleting preexisting {key}')
                             del h[key]
                         h.create_dataset(key, data=np.void(fp.read()))
                     #Delete RAW chunk
@@ -275,7 +275,7 @@ class H5_Nested_Store(Store):
         
         for unique in self.get_unique_archive_locations():
             path_name = os.path.splitext(unique)[0]
-            archive = unique + '.tmp'
+            archive = unique
             if par:
                 print('Delaying {}'.format(unique))
                 d = delayed(self._migrate_path_to_archive)(archive,path_name)
@@ -286,41 +286,6 @@ class H5_Nested_Store(Store):
             
         if par:
             to_run = dask.compute(to_run)
-        
-        # #Move RAW chunk first to .zip.tmp
-        # for root, folder, files in os.walk(self.path,topdown=True):
-        #     for f in files:
-        #         filepath = os.path.join(root,f)
-        #
-        #         # if os.path.splitext(filepath)[-1] == '.tmp':
-        #         #     pass
-        #
-        #         if os.path.splitext(filepath)[-1] == self.container_ext:
-        #             tmp_archive = filepath + '.tmp'
-        #
-        #             if os.path.exists(tmp_archive):
-        #                 #Test for whether paths that may incude raw chunks exist
-        #                 #Future tests may verify whether raw chunks do exist
-        #                 with ZipFile(tmp_archive,'a') as ztmp:
-        #                     tmp_names = ztmp.namelist()
-        #                     with ZipFile(filepath,'r') as zfile:
-        #                         for key in zfile.namelist():
-        #                             if key not in tmp_names:
-        #                                 print('Migrating key {} to {}'.format(key,tmp_archive))
-        #                                 with zfile.open(key,'r') as mf: #Raise KeyError if key does not exist
-        #                                     value = mf.read()
-        #                                 ztmp.writestr(key,value)
-        #                 os.remove(filepath)
-        
-        #Rename self.container_ext.tmp to self.container_ext
-        for root, folder, files in os.walk(self.path,topdown=True):
-            for f in files:
-                if f'{self.container_ext}.tmp' in f:
-                    filepath = os.path.join(root,f)
-                    newname = os.path.splitext(filepath)[0]
-                    if not os.path.exists(newname):
-                        print('Renaming {} to {}'.format(filepath,newname))
-                        shutil.move(filepath,newname)
         
         #Clean empty directories
         for root, folder, files in os.walk(self.path,topdown=False):
@@ -346,18 +311,7 @@ class H5_Nested_Store(Store):
         
         archive, key = self._get_archive_key_name(filepath)
         
-        #Check if a temporary archive exists and look for key here
-        tmp_archive = archive +'.tmp'
-        if os.path.isfile(tmp_archive):
-            # print('In read tmp')
-            try:
-                return self._fromh5(archive,key)
-            except KeyError:
-                pass
-            except:
-                pass
-        
-        #Attempt to read file from archive
+        #Attempt to read file from H5
         if os.path.isfile(archive):
             # print('In read archive')
             try:
@@ -365,7 +319,7 @@ class H5_Nested_Store(Store):
             except:
                 pass
         
-        #KeyError if neither RAW file nor key found in archive(s)
+        #KeyError if neither RAW file nor key found in H5
         # print('Raising Key Error')
         raise KeyError(key)
 
@@ -430,12 +384,6 @@ class H5_Nested_Store(Store):
             return True
         
         archive, key = self._get_archive_key_name(file_path)
-        
-        #Check if a temporary archive exists and look for key here
-        tmp_archive = archive +'.tmp'
-        if os.path.isfile(tmp_archive):
-            if self._zip_contains(tmp_archive,key):
-                return True
                 
         if os.path.isfile(archive):
             if self._zip_contains(archive,key):
