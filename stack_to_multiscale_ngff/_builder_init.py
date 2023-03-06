@@ -122,7 +122,8 @@ class builder(_builder_downsample,
         
         self.shape = (self.TimePoints, self.Channels, *self.shape_3d)
         
-        self.pyramidMap = self.imagePyramidNum()
+        # self.pyramidMap = self.imagePyramidNum()
+        self.pyramidMap = self.imagePyramidNum_converge_isotropic()
         
         self.build_zattrs()
             

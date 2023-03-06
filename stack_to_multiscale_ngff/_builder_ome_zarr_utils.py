@@ -58,15 +58,8 @@ class _builder_ome_zarr_utils:
         for res in self.pyramidMap:
             scale = {}
             scale["path"] = 'scale{}'.format(res)
-            
-            z=self.geometry[2]
-            y=self.geometry[3]
-            x=self.geometry[4]
-            
-            for _ in range(res):
-                z *= 2
-                y *= 2
-                x *= 2
+
+            z,y,x = self.pyramidMap[res]['resolution']
                 
             scale["coordinateTransformations"] = [{
                 "type": "scale",

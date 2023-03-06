@@ -135,6 +135,8 @@ class _builder_utils:
     
     def imagePyramidNum(self):
         '''
+        DEPRECIATED: Only downscales (2,2,2) (x,y,x). Does not output
+        resolution or downsample
         Map of pyramids accross a single 3D color
         
         Output is used to guide subsequent multiscales that are produced
@@ -142,8 +144,10 @@ class _builder_utils:
         out_shape = self.shape_3d
         chunk = self.origionalChunkSize[2:]
         final_chunk_size = self.finalChunkSize[2:]
+        resolution = self.geometry[2:]
         
-        pyramidMap = {0:[out_shape,chunk]}
+        # pyramidMap = {0:[out_shape,chunk]}
+        pyramidMap = {0: [out_shape, chunk, resolution, (1, 1, 1)]}
         
         # Make sure chunks are adjusted in the approriate way
         # ie getting bigger or smaller with each level
@@ -193,10 +197,13 @@ class _builder_utils:
                         chunk[idx]
                         )
             chunk = tuple(tmpChunk)
-            
-            pyramidMap[current_pyramid_level] = [out_shape,chunk]
+
+            res = np.array(pyramidMap[current_pyramid_level-1][2]) * 2
+            res = tuple(res)
+
+            pyramidMap[current_pyramid_level] = [out_shape,chunk,res,(2,2,2)]
                 
-            print((out_shape,chunk))
+            print((out_shape,chunk,res,(2,2,2)))
             
             # stop if any shape dimension is below 1 then delete pyramid level            
             if any([x<2 for x in out_shape]):
@@ -209,11 +216,164 @@ class _builder_utils:
                     break
                 else:
                     last_level = True
-        
-        print(pyramidMap)
-        return pyramidMap
-    
-    
+
+        pyramidMap_dict = {}
+        keys = ['shape','chunk','resolution','downsamp']
+        for key, value in pyramidMap.items():
+            pyramidMap_dict[key] = {}
+            for nk, ii in zip(keys, value):
+                pyramidMap_dict[key][nk] = ii
+
+        print(pyramidMap_dict)
+        return pyramidMap_dict
+    def imagePyramidNum_converge_isotropic(self):
+        '''
+        Map of pyramids accross a single 3D color
+
+        Output is used to guide subsequent multiscales that are produced
+
+        This version of the function attempts to move resolution towards
+        iostropic rather than just 2x downsample
+
+        The current version only allows 2x or 1x (ie. no) downsample
+        Thus, some volumes will never reach isotropic.
+
+        This method of approaching isotropic resolution should make
+        visualizing volumes that are sampled very sparsely in 1 dimension
+        a better experience.
+
+        CURRENT: Assumes that (y,x) have the same resolution. Z is independant
+        FUTURE: Allow all resolutions to be independant and choose the best downsample method
+
+        '''
+        out_shape = self.shape_3d
+        chunk = self.origionalChunkSize[2:]
+        final_chunk_size = self.finalChunkSize[2:]
+        resolution = self.geometry[2:]
+
+        # pyramidMap = {res_lev:[shape,chunk_size,resolution,downsamp_factor]}
+        pyramidMap = {0:[out_shape,chunk,resolution,(1,1,1)]}
+
+        # Make sure chunks are adjusted in the approriate way
+        # ie getting bigger or smaller with each level
+        # Assuming (z,y,x): z will change by fac of 4, y,x by fac of 2
+        chunk_change = []
+        for idx,s,f in zip((0,1,2),chunk,final_chunk_size):
+            if idx == 0:
+                fac = 2
+            else:
+                fac = 1
+            if s > f:
+                chunk_change.append(0.5 * fac)
+            elif s < f:
+                chunk_change.append(2 * fac)
+            elif s == f:
+                chunk_change.append(1)
+
+        chunk_change = tuple(chunk_change)
+        print(chunk_change)
+        # chunk_change = (4,0.5,0.5)
+        # chunk_change = (2,2,2)
+
+
+
+        current_pyramid_level = 0
+        print((out_shape,chunk))
+
+        last_level = False
+        while True:
+            current_pyramid_level += 1
+
+            # Determine downsampling requiremnts
+            previous_shape = pyramidMap[current_pyramid_level-1][0]
+            previous_resolution = np.array(pyramidMap[current_pyramid_level-1][2])
+            # # Multiply each resolution by 2 to simulate 2x downsample
+            # two_fac = np.array(previous_resolution) * 2
+            # # Determine if any two_fac is >= the max value from previous_resolution
+            # bigger_than_max = two_fac >= np.array((previous_resolution.max(),))
+
+            # Determine which resolutions are below
+            ratio_of_max = previous_resolution / previous_resolution.max()
+            ratio_below_half = ratio_of_max <= 0.5
+            ratio_below_one = ratio_of_max < 1
+            down_samp = []
+            res = []
+            for idx,below_half,below_one in zip((0,1,2),ratio_below_half,ratio_below_one):
+                if all(ratio_of_max == 1) or all(np.logical_and(ratio_of_max<=1, ratio_of_max>0.5)):
+                    new_samp = 2
+                    new_res = previous_resolution[idx] * 2
+                elif below_one:
+                    if below_half:
+                        new_samp = 2
+                        new_res = previous_resolution[idx] * 2
+                    else:
+                        new_samp = 1 / ratio_of_max[idx]
+                        # new_samp = 2
+                        new_res = previous_resolution[idx] * new_samp
+                        # new_res = previous_resolution[idx] * 2
+                else:
+                    new_samp = 1
+                    new_res = previous_resolution[idx]
+                down_samp.append(new_samp)
+                res.append(new_res)
+            print(down_samp)
+            print(res)
+
+            # out_shape = tuple([x//2 for x in out_shape])
+            out_shape = np.array(previous_shape) / np.array(down_samp)
+            out_shape = np.floor(out_shape)
+            out_shape = tuple(out_shape.astype(int))
+
+            chunk = (
+                chunk_change[0]*pyramidMap[current_pyramid_level-1][1][0],
+                chunk_change[1]*pyramidMap[current_pyramid_level-1][1][1],
+                chunk_change[2]*pyramidMap[current_pyramid_level-1][1][2]
+                )
+            chunk = [int(x) for x in chunk]
+
+
+            tmpChunk = []
+            for idx,c in enumerate(chunk_change):
+                if c > 1:
+                    tmpChunk.append(
+                        chunk[idx] if chunk[idx] <= final_chunk_size[idx] else final_chunk_size[idx]
+                        )
+                elif c < 1:
+                    tmpChunk.append(
+                        chunk[idx] if chunk[idx] >= final_chunk_size[idx] else final_chunk_size[idx]
+                        )
+                elif c == 1:
+                    tmpChunk.append(
+                        chunk[idx]
+                        )
+            chunk = tuple(tmpChunk)
+
+            pyramidMap[current_pyramid_level] = [out_shape,chunk,tuple(res),tuple(down_samp)]
+
+            print((out_shape,chunk))
+
+            # stop if any shape dimension is below 1 then delete pyramid level
+            if any([x<2 for x in out_shape]):
+                del pyramidMap[current_pyramid_level]
+                break
+
+            # Ensure that at least 1 more resolution level is formed to benefit low resolution viewers
+            if any([c>s for c,s in zip(chunk,out_shape)]):
+                if last_level:
+                    break
+                else:
+                    last_level = True
+
+
+        pyramidMap_dict = {}
+        keys = ['shape','chunk','resolution','downsamp']
+        for key, value in pyramidMap.items():
+            pyramidMap_dict[key] = {}
+            for nk,ii in zip(keys,value):
+                pyramidMap_dict[key][nk] = ii
+
+        print(pyramidMap_dict)
+        return pyramidMap_dict
     
     
     

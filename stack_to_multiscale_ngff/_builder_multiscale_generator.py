@@ -131,10 +131,10 @@ class _builder_multiscale_generator:
         print(parent_array.shape)
         new_array_store = self.get_store(res)
         
-        new_shape = (self.TimePoints, self.Channels, *self.pyramidMap[res][0])
+        new_shape = (self.TimePoints, self.Channels, *self.pyramidMap[res]['shape'])
         print(new_shape)
         # new_chunks = (1, 1, 16, 512, 4096)
-        new_chunks = (1, 1, *self.pyramidMap[res][1])
+        new_chunks = (1, 1, *self.pyramidMap[res]['chunk'])
         print(new_chunks)
         
         
@@ -142,7 +142,12 @@ class _builder_multiscale_generator:
         new_array = zarr.zeros(new_shape, chunks=new_chunks, store=new_array_store, overwrite=True, compressor=self.compressor,dtype=self.dtype)
         print('new_array, {}, {}'.format(new_array.shape,new_array.chunks))
         # z = zarr.zeros(stack.shape, chunks=self.origionalChunkSize, store=store, overwrite=True, compressor=self.compressor,dtype=stack.dtype)
-        
+        if self.pyramidMap[res]['downsamp'] == (2,2,2):
+            dsamp_algo = self.fast_3d_downsample
+        elif self.pyramidMap[res]['downsamp'] == (1,2,2):
+            dsamp_algo = self.fast_2d_downsample
+        else:
+            raise TypeError('Only 3D <2,2,2> and 2D <1,2,2> down samples for axes (z,y,x) are currently supported')
 
         to_run = []
         # Currently hardcoded - works well for 32core, 512GB RAM
@@ -178,9 +183,9 @@ class _builder_multiscale_generator:
                             # working = delayed(smooth_downsample)(parent_location,out_location,1,info,store=H5Store)
                             # working = delayed(local_mean_3d_downsample)(parent_location,out_location,info,store=H5Store)
                             if res == 1:
-                                working = delayed(self.fast_3d_downsample)(parent_location,out_location,info,minmax=True,idx=idx,store=self.zarr_store_type)
+                                working = delayed(dsamp_algo)(parent_location,out_location,info,minmax=True,idx=idx,store=self.zarr_store_type)
                             else:
-                                working = delayed(self.fast_3d_downsample)(parent_location,out_location,info,minmax=False,idx=idx,store=self.zarr_store_type)
+                                working = delayed(dsamp_algo)(parent_location,out_location,info,minmax=False,idx=idx,store=self.zarr_store_type)
                             print('{},{},{},{},{}'.format(t,c,z,y,x))
                             to_run.append(working)
                             idx_reference.append((idx,(parent_location,out_location,info)))
@@ -219,9 +224,9 @@ class _builder_multiscale_generator:
             to_run = []
             for ii in re_process:
                 if res == 1:
-                    working = delayed(self.fast_3d_downsample)(ii[1][0],ii[1][1],ii[1][2],minmax=True,idx=ii[0],store=self.zarr_store_type)
+                    working = delayed(dsamp_algo)(ii[1][0],ii[1][1],ii[1][2],minmax=True,idx=ii[0],store=self.zarr_store_type)
                 else:
-                    working = delayed(self.fast_3d_downsample)(ii[1][0],ii[1][1],ii[1][2],minmax=False,idx=ii[0],store=self.zarr_store_type)
+                    working = delayed(dsamp_algo)(ii[1][0],ii[1][1],ii[1][2],minmax=False,idx=ii[0],store=self.zarr_store_type)
                 to_run.append(working)
                 idx_reference.append(ii)
             

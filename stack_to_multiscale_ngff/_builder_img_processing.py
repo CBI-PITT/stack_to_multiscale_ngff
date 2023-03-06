@@ -94,7 +94,7 @@ class _builder_downsample:
             # Compensate for overlap in new array
             (info['x'][0][0] + info['x'][1][0]) // 2:(info['x'][0][1] - info['x'][1][1]) // 2
             # Compensate for overlap in new array
-            ] = working[1:-1, 1:-1, 1:-1]
+            ] = working[2:-2, 1:-1, 1:-1]
 
             # Imediately verify that the array was written is correctly
             if verify:
@@ -111,7 +111,7 @@ class _builder_downsample:
                     # Compensate for overlap in new array
                     (info['x'][0][0] + info['x'][1][0]) // 2:(info['x'][0][1] - info['x'][1][1]) // 2
                     # Compensate for overlap in new array
-                    ] == working[1:-1, 1:-1, 1:-1]
+                    ] == working[2:-2, 1:-1, 1:-1]
                 )
             else:
                 # To bypass the immediate verification
@@ -267,7 +267,7 @@ class _builder_downsample:
     
     def determine_chunks_size_for_downsample(self,res):
         
-        new_chunks = (self.pyramidMap[res][1])
+        new_chunks = (self.pyramidMap[res]['chunk'])
         single_chunk_size = math.prod(new_chunks)
         
         if self.dtype == np.dtype('uint8'):
