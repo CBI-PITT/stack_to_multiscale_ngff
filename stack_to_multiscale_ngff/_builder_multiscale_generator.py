@@ -141,13 +141,8 @@ class _builder_multiscale_generator:
         
         new_array = zarr.zeros(new_shape, chunks=new_chunks, store=new_array_store, overwrite=True, compressor=self.compressor,dtype=self.dtype)
         print('new_array, {}, {}'.format(new_array.shape,new_array.chunks))
-        
-        # if self.pyramidMap[res]['downsamp'] == (2,2,2):
-        #     dsamp_algo = self.fast_3d_downsample
-        # elif self.pyramidMap[res]['downsamp'] == (1,2,2):
-        #     dsamp_algo = self.fast_2d_downsample
-        # else:
-        #     raise TypeError('Only 3D <2,2,2> and 2D <1,2,2> down samples for axes (z,y,x) are currently supported')
+
+        # Other downsample methods could be substituted here
         dsamp_algo = self.fast_downsample
 
         to_run = []
