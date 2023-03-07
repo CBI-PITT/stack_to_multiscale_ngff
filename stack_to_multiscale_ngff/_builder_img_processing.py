@@ -19,6 +19,172 @@ import zarr
 
 class _builder_downsample:
 
+    def fast_downsample(self, from_path, to_path, info, minmax=False, idx=None,
+                           store=zarr.storage.NestedDirectoryStore, verify=True,
+                        down_sample_ratio=(2,2,2)):
+        '''
+        Helper function that handles downsampling 3D data in across 3 dimensions.
+        down_sample_ratio: tuple that determines how each axis will be downsampled. Currently only 1 or 2 are supported
+        1 = no downsample, 2 = 2x downsample
+
+        An option to verify that the downsampled data were written is on by default. This will slow the creation
+        process, but in high-parallel environment chunks sometimes do not get written properly causing data loss
+        that cascades into lower resolution levels when writing a multscale series. If the chunk was not written
+        properly, the process will be repeated until successful.
+        '''
+
+        zstore = self.get_store_from_path(from_path)
+
+        zarray = zarr.open(zstore)
+
+        working = zarray[
+                  info['t'],
+                  info['c'],
+                  info['z'][0][0]:info['z'][0][1],
+                  info['y'][0][0]:info['y'][0][1],
+                  info['x'][0][0]:info['x'][0][1]
+                  ]
+
+        while len(working.shape) > 3:
+            working = working[0]
+
+        del zarray
+        del zstore
+
+        working = self.dtype_convert(working)
+        # Calculate min/max of input data
+        if minmax:
+            min, max = working.min(), working.max()
+
+        # Ensure all arrays are padded with 2X mirrored pixels
+        if self.downSampType == 'mean' or self.downSampType == 'max':
+            working = self.pad_3d_2x(working, info, final_pad=2)
+
+        # Run proper downsampling method
+        if self.downSampType == 'mean':
+            working = self.local_mean_downsample(working,down_sample_ratio=down_sample_ratio)
+        elif self.downSampType == 'max':
+            working = self.local_max_downsample(working,down_sample_ratio=down_sample_ratio)
+
+
+
+        down_sample_trim = []
+        for ii in down_sample_ratio:
+            if ii == 1:
+                down_sample_trim.append(2)
+            elif ii == 2:
+                down_sample_trim.append(1)
+            else:
+                raise NotImplementedError('Only 2X and 1X down sample are supported at this time')
+        down_sample_trim = tuple(down_sample_trim)
+
+        while True:
+            zstore = self.get_store_from_path(to_path)
+
+            zarray = zarr.open(zstore)
+            # Write array trimmed of 1 value along all edges
+            zarray[
+            info['t'],
+            info['c'],
+            (info['z'][0][0] + info['z'][1][0]) // down_sample_ratio[0]:(info['z'][0][1] - info['z'][1][1]) // down_sample_ratio[0],
+            # Compensate for overlap in new array
+            (info['y'][0][0] + info['y'][1][0]) // down_sample_ratio[1]:(info['y'][0][1] - info['y'][1][1]) // down_sample_ratio[1],
+            # Compensate for overlap in new array
+            (info['x'][0][0] + info['x'][1][0]) // down_sample_ratio[2]:(info['x'][0][1] - info['x'][1][1]) // down_sample_ratio[2]
+            # Compensate for overlap in new array
+            ] = working[
+                down_sample_trim[0]:-down_sample_trim[0],
+                down_sample_trim[1]:-down_sample_trim[1],
+                down_sample_trim[2]:-down_sample_trim[2]
+                ]
+
+            # Immediately verify that the array was written is correctly
+            if verify:
+                print('Verifying Location {}'.format(info))
+                del zarray
+                zarray = zarr.open(zstore, 'r')
+                correct = np.ndarray.all(
+                    zarray[
+                    info['t'],
+                    info['c'],
+                    (info['z'][0][0] + info['z'][1][0]) // down_sample_ratio[0]:(info['z'][0][1] - info['z'][1][1]) // down_sample_ratio[0],
+                    # Compensate for overlap in new array
+                    (info['y'][0][0] + info['y'][1][0]) // down_sample_ratio[1]:(info['y'][0][1] - info['y'][1][1]) // down_sample_ratio[1],
+                    # Compensate for overlap in new array
+                    (info['x'][0][0] + info['x'][1][0]) // down_sample_ratio[2]:(info['x'][0][1] - info['x'][1][1]) // down_sample_ratio[2]
+                    # Compensate for overlap in new array
+                    ] == working[
+                        down_sample_trim[0]:-down_sample_trim[0],
+                        down_sample_trim[1]:-down_sample_trim[1],
+                        down_sample_trim[2]:-down_sample_trim[2]
+                        ]
+                )
+            else:
+                # To bypass the immediate verification
+                correct = True
+
+            del zarray
+            del zstore
+
+            if correct:
+                print('SUCCESS : {}'.format(info))
+                break
+            else:
+                print('FAILURE : RETRY {}'.format(info))
+
+        if correct and minmax:
+            return idx, (min, max, info['c'])
+        if correct and not minmax:
+            return idx,
+        if not correct:
+            print('Not Correct')
+            return False,
+        return False,
+
+    def local_mean_downsample(self, image,down_sample_ratio=(2,2,2)):
+        image = img_as_float32(image)
+        canvas = np.zeros(
+            (image.shape[0] // down_sample_ratio[0],
+             image.shape[1] // down_sample_ratio[1],
+             image.shape[2] // down_sample_ratio[2]),
+            dtype=np.dtype('float32')
+        )
+
+        # print(canvas.shape)
+        for z, y, x in product(range(down_sample_ratio[0]), range(down_sample_ratio[1]), range(down_sample_ratio[2])):
+            tmp = image[
+                  z::down_sample_ratio[0],
+                  y::down_sample_ratio[1],
+                  x::down_sample_ratio[2]
+                  ][0:canvas.shape[0] - 1, 0:canvas.shape[1] - 1, 0:canvas.shape[2] - 1]
+            canvas[0:tmp.shape[0], 0:tmp.shape[1], 0:tmp.shape[2]] += tmp
+
+        canvas /= math.prod(down_sample_ratio)
+        return self.dtype_convert(canvas)
+
+    def local_max_downsample(self, image,down_sample_ratio=(2,2,2)):
+        # image = img_as_float32(image)
+        canvas = np.zeros(
+            (image.shape[0] // down_sample_ratio[0],
+             image.shape[1] // down_sample_ratio[1],
+             image.shape[2] // down_sample_ratio[2]),
+            dtype=image.dtype
+        )
+
+        canvas_tmp = canvas.copy()
+
+        # print(canvas.shape)
+        for z, y, x in product(range(down_sample_ratio[0]), range(down_sample_ratio[1]), range(down_sample_ratio[2])):
+            tmp = image[
+                  z::down_sample_ratio[0],
+                  y::down_sample_ratio[1],
+                  x::down_sample_ratio[2]
+                  ][0:canvas.shape[0] - 1, 0:canvas.shape[1] - 1, 0:canvas.shape[2] - 1]
+            canvas_tmp[0:tmp.shape[0], 0:tmp.shape[1], 0:tmp.shape[2]] = tmp
+
+        np.maximum(canvas, canvas_tmp, out=canvas)
+        return self.dtype_convert(canvas)
+
     def fast_2d_downsample(self, from_path, to_path, info, minmax=False, idx=None,
                            store=zarr.storage.NestedDirectoryStore, verify=True):
         '''
