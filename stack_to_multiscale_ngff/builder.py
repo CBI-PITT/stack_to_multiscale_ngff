@@ -59,12 +59,13 @@ if __name__ == '__main__':
     ## Below will enable inputs for information included in .zattrs omero metadata
     #Nothing is required and when left bank will be generated automatically based on the data being converted
 
-    name = args.name if args.name != [] else None
+    name = args.name[0] if args.name != [] else None
     defaultZ = args.defaultZ[0] if args.defaultZ != [] else None
 
     #Expects a list of labels for each channel ex. ['autofluorescence','tyrosine_hydroxylase','cFOS']
     channelLabels = args.channelLabels if args.channelLabels != [] else None
     if channelLabels is not None:
+        tmp = {}
         for idx,ii in enumerate(channelLabels):
             tmp[idx] = ii
         channelLabels = tmp
@@ -81,7 +82,7 @@ if __name__ == '__main__':
                 channel = {}
                 channel['start'] = ii
             elif idx % 4 == 1:
-                channel['stop'] = ii
+                channel['end'] = ii
             elif idx % 4 == 2:
                 channel['min'] = ii
             elif idx % 4 == 3:

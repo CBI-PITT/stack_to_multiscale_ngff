@@ -42,11 +42,13 @@ class _builder_multiscale_generator:
         if res == 0:
             self.write_resolution_0(client)
             return
-        
-        out = self.down_samp(res,client)
-        # During creation of res 1, the min and max is calculated for res 0
+
+        # During creation of res 1, the min and max is calculated for res 0 if values
+        # for omero window were not specified in the commandline
+        # These values are added to zattrs omero:channels
         # out is a list of tuple (min,max,channel)
-        if res == 1:
+        if res == 1 and self.omero_dict['channels']['window'] is None:
+            out = self.down_samp(res, client,minmax=True)
             self.min = []
             self.max = []
             for ch in range(self.Channels):
@@ -56,6 +58,8 @@ class _builder_multiscale_generator:
                 self.min.append( min([x[0] for x in tmp]) )
                 self.max.append( max([x[1] for x in tmp]) )
             self.set_omero_window()
+        else:
+            out = self.down_samp(res, client, minmax=False)
     
     
     def write_resolution_0(self,client):
@@ -121,7 +125,7 @@ class _builder_multiscale_generator:
             to_store = client.gather(to_store)
     
     
-    def down_samp(self,res,client):
+    def down_samp(self,res,client,minmax=False):
         
         out_location = self.scale_name(res)
         parent_location = self.scale_name(res-1)
