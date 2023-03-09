@@ -26,6 +26,7 @@ from stack_to_multiscale_ngff._builder_utils import _builder_utils
 from stack_to_multiscale_ngff._builder_ome_zarr_utils import _builder_ome_zarr_utils
 from stack_to_multiscale_ngff._builder_image_utils import _builder_image_utils
 from stack_to_multiscale_ngff._builder_multiscale_generator import _builder_multiscale_generator
+# from stack_to_multiscale_ngff._builder_colors import _builder_colors
 
 class builder(_builder_downsample,
             _builder_utils,
@@ -42,7 +43,8 @@ class builder(_builder_downsample,
             compressor=Blosc(cname='zstd', clevel=5, shuffle=Blosc.SHUFFLE),
             zarr_store_type=zarr.storage.NestedDirectoryStore, tmp_dir='/local',
             verbose=False, performance_report=True, progress=False,
-            verify_zarr_write=False, skip=False,
+            verify_zarr_write=False, omero_dict={},
+            skip=False,
             downSampType='mean'
             ):
                 
@@ -63,6 +65,7 @@ class builder(_builder_downsample,
         self.performance_report = performance_report
         self.progress = progress
         self.verify_zarr_write = verify_zarr_write
+        self.omero_dict = omero_dict
         self.skip = skip
         self.downSampType = downSampType
         

@@ -35,18 +35,25 @@ optional = [
     (['-oc','--origionalChunkSize'],int,5,'O',(1,1,1,1024,1024),'store','The chunk size for the higest resolution scale0. Must be 5 integers for axes (TCZYX).'),
     (['-fc','--finalChunkSize'],int,5,'F',(1,1,16,256,256),'store','The chunk size for the lowest resolution scaleX. Must be 5 integers for axes (TCZYX).'),
     (['-cpu'],int,1,'C',[os.cpu_count()],'store','Number of cpus which are available'),
-    (['-mem'],int,1,'M',[int(psutil.virtual_memory().free/1024/1024/1024*.8)],'store','Available RAM in GB: default is 0.8x of free RAM'),
+    (['-mem'],int,1,'M',[int(psutil.virtual_memory().free/1024/1024/1024*0.8)],'store','Available RAM in GB: default is 0.8x of free RAM'),
     (['-tmp','--tmpLocation'],str,1,'TMP',['/CBI_FastStore/tmp_dask'],'store','Location for temp files --> high-speed local storage is suggested'),
-    (['-ft','--fileType'],str,1,'FT',['tif'],'store','File type for input --> Currently only tif is supported'),
+    (['-ft','--fileType'],str,1,'FT',['tif'],'store','File type for input --> Currently tif,tiff,jp2 and some nifti are supported'),
     (['-s','--scale'],float,5,'S',(1,1,1,1,1),'store','5-dim scale of the datasets (tczyx) in MICRONS'),
-    (['-cl','--clevel'],int,1,'CMP',[9],'store','Compression level : Integer 0-9 where 0 is no compression and 9 is the most compression')
+    (['-cl','--clevel'],int,1,'CMP',[5],'store','Compression level : Integer 0-9 where 0 is no compression and 9 is the most compression'),
+    #Optional arguyments for OME-ZARR OMERO metadata
+    (['-ch','--channelLabels'],str,'*','CH',[],'store','A label for each channel'),
+    (['-clr','--colors'],str,'*','CLR',[],'store','Color for each channel: by default colors are repeatedly assigned as [green, red, purple, blue,...]'),
+    (['-win','--windowLabels'],int,'*','WIN',[],'store','START STOP MIN MAX defining the LUT representation of each channel'),
+    (['-n','--name'],str,1,'NAM',[],'store','Name of the dataset'),
+    (['-z','--defaultZ'],int,1,'dfZ',[],'store','Default Z-Layer to be displayed during visualization')
 
     ]
 
 switch = [
     (['-v', '--verbose'], 0,'count','Verbose output : additive more v = greater level of verbosity'),
     (['-vzw', '--verify_zarr_write'], False,'store_true','Immediately verify each chunk written to disk.  Currently only works with H5_Shard_Store'),
-    (['-sk', '--skip'], False,'store_true','skip resolution level if it already exist')
+    (['-sk', '--skip'], False,'store_true','skip resolution level if it already exist'),
+    (['-st','--stopBuild'], True,'store_false','Immediately stop building multiscale NGFF after initializing builder class- only used for development purposes'),
     ]
 
 for var,v_type,nargs,v_help in positional:

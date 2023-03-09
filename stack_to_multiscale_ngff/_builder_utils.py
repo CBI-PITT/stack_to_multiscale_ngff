@@ -435,4 +435,18 @@ class _builder_utils:
                 chunk_depth = z_plane_shape[0]
                 break
         return chunk_depth
+
+    def search_dict_by_value(self,dic,value):
+        if value in dic:
+            return dic[value]
+        elif value.lower() in dic:
+            return dic[value.lower()]
+
+        for key, val in dic.items():
+            if value == key:
+                return key
+            elif value == val:
+                return val
+
+        return KeyError(f'{value} not in dictionary')
     

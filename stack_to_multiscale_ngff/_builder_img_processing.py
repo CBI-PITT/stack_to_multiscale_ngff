@@ -142,6 +142,14 @@ class _builder_downsample:
         return False,
 
     def local_mean_downsample(self, image,down_sample_ratio=(2,2,2)):
+        '''
+                Inputs:
+                image: 3D numpy array
+                down_sample_ratio: (tuple,list) specifying down sampling along axes (z,y,x) at 2x or 1x (none)
+
+                Output:
+                3D numpy array that has been down sampled using a local mean function at ratios 1x or 2x according to the 'down_sample_ratio'
+        '''
         image = img_as_float32(image)
         canvas = np.zeros(
             (image.shape[0] // down_sample_ratio[0],
@@ -163,7 +171,14 @@ class _builder_downsample:
         return self.dtype_convert(canvas)
 
     def local_max_downsample(self, image,down_sample_ratio=(2,2,2)):
-        # image = img_as_float32(image)
+        '''
+                Inputs:
+                image: 3D numpy array
+                down_sample_ratio: (tuple,list) specifying down sampling along axes (z,y,x) at 2x or 1x (none)
+
+                Output:
+                3D numpy array that has been down sampled using a local max function at ratios 1x or 2x according to the 'down_sample_ratio'
+        '''
         canvas = np.zeros(
             (image.shape[0] // down_sample_ratio[0],
              image.shape[1] // down_sample_ratio[1],
@@ -181,8 +196,7 @@ class _builder_downsample:
                   x::down_sample_ratio[2]
                   ][0:canvas.shape[0] - 1, 0:canvas.shape[1] - 1, 0:canvas.shape[2] - 1]
             canvas_tmp[0:tmp.shape[0], 0:tmp.shape[1], 0:tmp.shape[2]] = tmp
-
-        np.maximum(canvas, canvas_tmp, out=canvas)
+            np.maximum(canvas, canvas_tmp, out=canvas)
         return self.dtype_convert(canvas)
     
     def determine_chunks_size_for_downsample(self,res):
