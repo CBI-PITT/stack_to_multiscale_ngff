@@ -38,7 +38,7 @@ class builder(_builder_downsample,
     '''
     def __init__(
             self,in_location,out_location,fileType='tif',
-            geometry=(1,1,0.35),origionalChunkSize=(1,1,1,1024,1024),finalChunkSize=(1,1,16,256,256),
+            geometry=(1,1,1),origionalChunkSize=(1,1,1,1024,1024),finalChunkSize=(1,1,64,64,64),
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
             compressor=Blosc(cname='zstd', clevel=5, shuffle=Blosc.SHUFFLE),
             zarr_store_type=zarr.storage.NestedDirectoryStore, tmp_dir='/local',
