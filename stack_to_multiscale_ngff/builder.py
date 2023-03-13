@@ -55,6 +55,8 @@ if __name__ == '__main__':
     scale = args.scale
     verify_zarr_write = args.verify_zarr_write
     skip = args.skip
+    downSampleType = args.downSampleType[0]
+    assert downSampleType in ['mean','max'], 'Only local mean and local max downsampling is available'
 
     ## Below will enable inputs for information included in .zattrs omero metadata
     #Nothing is required and when left bank will be generated automatically based on the data being converted
@@ -128,7 +130,7 @@ if __name__ == '__main__':
             cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
             zarr_store_type=H5_Nested_Store,
             verify_zarr_write=verify_zarr_write, omero_dict=omero,
-                 skip=skip)
+                 skip=skip, downSampType=downSampleType)
 
     if args.stopBuild:
         try:

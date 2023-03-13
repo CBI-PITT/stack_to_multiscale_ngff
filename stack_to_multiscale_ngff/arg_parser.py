@@ -45,7 +45,8 @@ optional = [
     (['-clr','--colors'],str,'*','CLR',[],'store','Color for each channel: by default colors are repeatedly assigned as [green, red, purple, blue,...]'),
     (['-win','--windowLabels'],int,'*','WIN',[],'store','START END MIN MAX defining the LUT representation of each channel'),
     (['-n','--name'],str,1,'NAM',[],'store','Name of the dataset'),
-    (['-z','--defaultZ'],int,1,'dfZ',[],'store','Default Z-Layer to be displayed during visualization')
+    (['-z','--defaultZ'],int,1,'dfZ',[],'store','Default Z-Layer to be displayed during visualization'),
+    (['-dst','--downSampleType'],str,1,'DSM',['max'],'store','Down sample method. Options are mean and max (default: mean')
 
     ]
 

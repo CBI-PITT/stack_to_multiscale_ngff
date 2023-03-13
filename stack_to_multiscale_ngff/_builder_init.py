@@ -42,7 +42,7 @@ class builder(_builder_downsample,
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
             compressor=Blosc(cname='zstd', clevel=5, shuffle=Blosc.SHUFFLE),
             zarr_store_type=zarr.storage.NestedDirectoryStore, tmp_dir='/local',
-            verbose=False, performance_report=True, progress=False,
+            verbose=False, performance_report=False, progress=False,
             verify_zarr_write=False, omero_dict={},
             skip=False,
             downSampType='mean'
