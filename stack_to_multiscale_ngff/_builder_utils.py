@@ -353,12 +353,12 @@ class _builder_utils:
             print((out_shape,chunk))
 
             # stop if any shape dimension is below 1 then delete pyramid level
-            if any([x<2 for x in out_shape]):
+            if any([x<1 for x in out_shape]):
                 del pyramidMap[current_pyramid_level]
                 break
 
             # Ensure that at least 1 more resolution level is formed to benefit low resolution viewers
-            if any([c>s for c,s in zip(chunk,out_shape)]):
+            if all([c>s for c,s in zip(chunk,out_shape)]):
                 if last_level:
                     break
                 else:
