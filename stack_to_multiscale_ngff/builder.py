@@ -130,7 +130,7 @@ if __name__ == '__main__':
             cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
             zarr_store_type=H5_Nested_Store,
             verify_zarr_write=verify_zarr_write, omero_dict=omero,
-                 skip=skip, downSampType=downSampleType)
+                 skip=skip, downSampType=downSampleType, directToFinalChunks=args.directToFinalChunks)
 
     if args.stopBuild:
         try:

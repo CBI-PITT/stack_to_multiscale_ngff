@@ -347,6 +347,8 @@ class _builder_utils:
                         chunk[idx]
                         )
             chunk = tuple(tmpChunk)
+            if self.directToFinalChunks:
+                chunk = final_chunk_size
 
             pyramidMap[current_pyramid_level] = [out_shape,chunk,tuple(res),tuple(down_samp)]
 

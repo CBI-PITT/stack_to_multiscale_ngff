@@ -45,7 +45,8 @@ class builder(_builder_downsample,
             verbose=False, performance_report=False, progress=False,
             verify_zarr_write=False, omero_dict={},
             skip=False,
-            downSampType='mean'
+            downSampType='mean',
+            directToFinalChunks=False
             ):
                 
         self.in_location = in_location
@@ -68,6 +69,7 @@ class builder(_builder_downsample,
         self.omero_dict = omero_dict
         self.skip = skip
         self.downSampType = downSampType
+        self.directToFinalChunks = directToFinalChunks
         
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
         self.res_chunk_limit_GB = self.mem / self.cpu_cores / 6 #Fudge factor for maximizing data being processed with available memory during downsample phase
