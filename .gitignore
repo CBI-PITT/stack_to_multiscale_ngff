@@ -25,6 +25,7 @@ var/
 *.egg
 *Notes.txt
 *notes.txt
+*.bak
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
