@@ -18,10 +18,10 @@ from numcodecs import Blosc
 from stack_to_multiscale_ngff._builder_init import builder
 
 # Import custom zarr store types
-from stack_to_multiscale_ngff.h5_shard_store import H5_Shard_Store
-from stack_to_multiscale_ngff.archived_nested_store import Archived_Nested_Store
-# from stack_to_multiscale_ngff.h5_nested_store3 import H5_Nested_Store
-from stack_to_multiscale_ngff.h5_nested_store4 import H5_Nested_Store
+# from stack_to_multiscale_ngff.archived_nested_store import Archived_Nested_Store
+from zarr_stores.archived_nested_store import Archived_Nested_Store
+# from stack_to_multiscale_ngff.h5_nested_store4 import H5_Nested_Store
+from zarr_stores.h5_nested_store import H5_Nested_Store
 
 # Import local functions
 from stack_to_multiscale_ngff.arg_parser import parser
