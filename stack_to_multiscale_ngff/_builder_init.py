@@ -78,7 +78,7 @@ class builder(_builder_downsample,
         # do not make a class attribute because it may not pickle when computing over dask
         try:
             if self.zarr_store_type == H5_Nested_Store:
-                store = self.zarr_store_type(self.out_location, write_direct=True, swmr=True, container_ext='h5', distribuited_lock=True)
+                store = self.zarr_store_type(self.out_location, write_direct=True, swmr=False, container_ext='h5', distribuited_lock=True)
             elif self.zarr_store_type == H5_Shard_Store:
                 store = self.zarr_store_type(self.out_location,verbose=self.verbose,alternative_lock_file_path=self.tmp_dir)
             else:
