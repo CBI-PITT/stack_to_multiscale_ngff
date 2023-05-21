@@ -71,28 +71,17 @@ class builder(_builder_downsample,
         self.downSampType = downSampType
         self.directToFinalChunks = directToFinalChunks
         
-        self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 2 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
+        self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 4 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
         self.res_chunk_limit_GB = self.mem / self.cpu_cores / 6 #Fudge factor for maximizing data being processed with available memory during downsample phase
         
         # Makes store location and initial group
         # do not make a class attribute because it may not pickle when computing over dask
-        try:
-            if self.zarr_store_type == H5_Nested_Store:
-                store = self.zarr_store_type(self.out_location, write_direct=True, swmr=False, container_ext='h5', distribuited_lock=True)
-            elif self.zarr_store_type == H5_Shard_Store:
-                store = self.zarr_store_type(self.out_location,verbose=self.verbose,alternative_lock_file_path=self.tmp_dir)
-            else:
-                store = self.zarr_store_type(self.out_location)
-        except:
-            store = self.zarr_store_type(self.out_location)
+
+        store = self.get_store_from_path(self.out_location) # location: _builder_utils
 
         # Sanity check that we can open the store
         store = zarr.open(store)
         del store
-        
-        
-        
-        # os.makedirs(self.out_location,exist_ok=True)
         
         ##  LIST ALL FILES TO BE CONVERTED  ##
         filesList = []
