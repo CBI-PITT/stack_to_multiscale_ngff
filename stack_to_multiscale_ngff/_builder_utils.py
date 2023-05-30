@@ -38,7 +38,7 @@ class _builder_utils:
         # Add custom methods for each store type, if available.
         try:
             if self.zarr_store_type == H5_Nested_Store:
-                store = self.zarr_store_type(path, write_direct=True, swmr=True, container_ext='h5', distribuited_lock=True)
+                store = self.zarr_store_type(path, write_direct=True, swmr=True, container_ext='h5', distribuited_lock=True, auto_verify_write=False)
             # elif self.zarr_store_type == H5_Shard_Store:
             #     store = self.zarr_store_type(path,verbose=self.verbose,alternative_lock_file_path=self.tmp_dir)
             else:
@@ -52,6 +52,18 @@ class _builder_utils:
         
         return store
     
+    def is_compressor_lossy(self, compressor):
+        '''
+        Take a compressor object and determine whether it is a lossy method
+        '''
+        if compressor is None:
+            pass
+        elif 'jpegxl' in compressor.codec_id.lower():
+            if not compressor.lossless:
+                return True
+
+        return False
+
     def scale_name(self,res):
         name = os.path.join(self.out_location,'scale{}'.format(res))
         print(name)

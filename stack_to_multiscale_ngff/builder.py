@@ -7,7 +7,23 @@ Created on Fri Oct 29 09:46:38 2021
 
 import os, glob, time, sys, shutil
 import dask
+
+import numcodecs
 from numcodecs import Blosc
+try:
+    from imagecodecs.numcodecs import JpegXl as Jpegxl
+    numcodecs.register_codec(Jpegxl)
+    print('Imported JpegXl')
+except:
+    pass
+try:
+    from imagecodecs.numcodecs import Jpegxl
+    numcodecs.register_codec(Jpegxl)
+    print('Imported Jpegxl')
+except:
+    pass
+# from imagecodecs.numcodecs import Jpegxl
+# numcodecs.register_codec(Jpegxl)
 
 # ## Fix to deal with fussy
 # from PIL import Image, ImageFile
@@ -121,8 +137,19 @@ if __name__ == '__main__':
     omero['rdefs'] = {}
     omero['rdefs']['defaultZ'] = defaultZ
 
+    compressor = None
+    if args.compression[0].lower() == '':
+        pass
+    elif args.compression[0].lower() == 'zstd':
+        assert args.clevel[0] >= 0 and args.clevel[0] <= 9, 'Compression Level must be between 0-9 for zstd'
+        compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
+    elif args.compression[0].lower() == 'jpegxl':
+        if args.lossy:
+            assert args.clevel[0] >= 0 and args.clevel[0] <= 100, 'Compression Level must be between 0-100 for jpegxl'
+            compressor = Jpegxl(level=args.clevel[0], lossless=False)
+        else:
+            compressor = Jpegxl(lossless=True)
 
-    compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
         
 
     #Initialize builder class

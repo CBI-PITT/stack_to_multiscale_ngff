@@ -39,8 +39,13 @@ optional = [
     (['-tmp','--tmpLocation'],str,1,'TMP',['/CBI_FastStore/tmp_dask'],'store','Location for temp files --> high-speed local storage is suggested'),
     (['-ft','--fileType'],str,1,'FT',['tif'],'store','File type for input --> Currently tif,tiff,jp2 and some nifti are supported'),
     (['-s','--scale'],float,5,'S',(1,1,1,1,1),'store','5-dim scale of the datasets (tczyx) in MICRONS'),
-    (['-cl','--clevel'],int,1,'CMP',[5],'store','Compression level : Integer 0-9 where 0 is no compression and 9 is the most compression'),
-    #Optional arguyments for OME-ZARR OMERO metadata
+
+    # Compression options
+    (['-cmp','--compression'],str,1,'CMP',['zstd'],'store','Compression method (zstd,jpegxl)'),
+    (['-cl','--clevel'],int,1,'CMP',[5],'store','Compression level : Integer 0-9 zstd (default 5), 0-100 jpegxl (default 95)'),
+
+
+    # Optional arguments for OME-ZARR OMERO metadata
     (['-ch','--channelLabels'],str,'*','CH',[],'store','A label for each channel'),
     (['-clr','--colors'],str,'*','CLR',[],'store','Color for each channel: by default colors are repeatedly assigned as [green, red, purple, blue,...]'),
     (['-win','--windowLabels'],int,'*','WIN',[],'store','START END MIN MAX defining the LUT representation of each channel'),
@@ -56,6 +61,11 @@ switch = [
     (['-sk', '--skip'], False,'store_true','skip resolution level if it already exist'),
     (['-st','--stopBuild'], True,'store_false','Immediately stop building multiscale NGFF after initializing builder class- only used for development purposes'),
     (['-df','--directToFinalChunks'], False,'store_true','Use final chunks for all multiscales except full resolution'),
+
+    # Compression opts
+    # Force users to choose --lossy for this to be used, otherwise default to lossless
+    (['-los', '--lossy'], False,'store_true','Use lossy compression, this only matters if using jpegxl and it MUST be selected for lossy compression to be enabled'),
+    #(['-lms', '--lossyMultiscale'], False,'store_true','Use lossy compression, only for multiscale data'),
     ]
 
 for var,v_type,nargs,v_help in positional:

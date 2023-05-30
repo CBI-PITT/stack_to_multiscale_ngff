@@ -78,66 +78,104 @@ class _builder_downsample:
                 raise NotImplementedError('Only 2X and 1X down sample are supported at this time')
         down_sample_trim = tuple(down_sample_trim)
 
-        while True:
-            zstore = self.get_store_from_path(to_path)
 
-            zarray = zarr.open(zstore)
-            # Write array trimmed of 1 value along all edges
-            zarray[
-            info['t'],
-            info['c'],
-            (info['z'][0][0] + info['z'][1][0]) // down_sample_ratio[0]:(info['z'][0][1] - info['z'][1][1]) // down_sample_ratio[0],
-            # Compensate for overlap in new array
-            (info['y'][0][0] + info['y'][1][0]) // down_sample_ratio[1]:(info['y'][0][1] - info['y'][1][1]) // down_sample_ratio[1],
-            # Compensate for overlap in new array
-            (info['x'][0][0] + info['x'][1][0]) // down_sample_ratio[2]:(info['x'][0][1] - info['x'][1][1]) // down_sample_ratio[2]
-            # Compensate for overlap in new array
-            ] = working[
+        working = working[
                 down_sample_trim[0]:-down_sample_trim[0],
                 down_sample_trim[1]:-down_sample_trim[1],
                 down_sample_trim[2]:-down_sample_trim[2]
                 ]
 
-            # Immediately verify that the array was written is correctly
-            if verify:
-                print('Verifying Location {}'.format(info))
+        trimmed_slice = np.s_[
+                        info['t'],
+                        info['c'],
+                        (info['z'][0][0] + info['z'][1][0]) // down_sample_ratio[0]:(info['z'][0][1] - info['z'][1][
+                            1]) // down_sample_ratio[0],
+                        # Compensate for overlap in new array
+                        (info['y'][0][0] + info['y'][1][0]) // down_sample_ratio[1]:(info['y'][0][1] - info['y'][1][
+                            1]) // down_sample_ratio[1],
+                        # Compensate for overlap in new array
+                        (info['x'][0][0] + info['x'][1][0]) // down_sample_ratio[2]:(info['x'][0][1] - info['x'][1][
+                            1]) // down_sample_ratio[2]
+                        # Compensate for overlap in new array
+        ]
+
+        failure = 0
+        correct = False
+        while not correct:
+            try:
+                zstore = self.get_store_from_path(to_path)
+
+                zarray = zarr.open(zstore)
+
+                compressor_lossy = self.is_compressor_lossy(zarray.compressor)  # _builder_utils
+
+                # if compressor_lossy:
+                #     to_compare = zarray[trimmed_slice]
+                # Write array trimmed of 1 value along all edges
+                zarray[trimmed_slice] = working
+
                 del zarray
-                zarray = zarr.open(zstore, 'r')
-                correct = np.ndarray.all(
-                    zarray[
-                    info['t'],
-                    info['c'],
-                    (info['z'][0][0] + info['z'][1][0]) // down_sample_ratio[0]:(info['z'][0][1] - info['z'][1][1]) // down_sample_ratio[0],
-                    # Compensate for overlap in new array
-                    (info['y'][0][0] + info['y'][1][0]) // down_sample_ratio[1]:(info['y'][0][1] - info['y'][1][1]) // down_sample_ratio[1],
-                    # Compensate for overlap in new array
-                    (info['x'][0][0] + info['x'][1][0]) // down_sample_ratio[2]:(info['x'][0][1] - info['x'][1][1]) // down_sample_ratio[2]
-                    # Compensate for overlap in new array
-                    ] == working[
-                        down_sample_trim[0]:-down_sample_trim[0],
-                        down_sample_trim[1]:-down_sample_trim[1],
-                        down_sample_trim[2]:-down_sample_trim[2]
-                        ]
-                )
-            else:
-                # To bypass the immediate verification
-                correct = True
+                del zstore
 
-            del zarray
-            del zstore
+                # Immediately verify that the array was written is correctly
+                if verify:
+                    # print('Verifying Location {}'.format(info))
+                    zstore = self.get_store_from_path(to_path)
+                    zarray = zarr.open(zstore, 'r')
 
-            if correct:
-                print('SUCCESS : {}'.format(info))
-                break
-            else:
-                print('FAILURE : RETRY {}'.format(info))
+                    # compressor_lossy = self.is_compressor_lossy(zarray.compressor) #_builder_utils
+
+                    if compressor_lossy:
+                        # print('lossy')
+                        ## Skip verification of lossy.  Not sure how to verify the data because its not
+                        ## obvious how to know the new values. The below method works early then fails as the array fills in
+                        ## probably because there are adjacent values in the array that unpredictatbly alter
+                        ## the outcome of the lossy compression.  The below method is also wasteful of CPU cycle, requiring
+                        ## compression to be done 2x.
+                        # if np.ndarray.all(to_compare == zarray[trimmed_slice]):
+                        #     correct = True
+                        # else:
+                        #     print('NOT CORRECT')
+                        # # print('comparing lossy')
+                        working_zarray = zarr.zeros(zarray.shape,chunks=zarray.chunks,dtype=zarray.dtype, compressor=zarray.compressor)
+                        working_zarray[trimmed_slice] = working
+                        correct = np.ndarray.all(
+                            zarray[trimmed_slice] == working_zarray[trimmed_slice]
+                        )
+                    else:
+                        correct = np.ndarray.all(
+                            zarray[trimmed_slice] == working
+                        )
+                else:
+                    # To bypass the immediate verification
+                    correct = True
+
+                del zarray
+                del zstore
+
+                if correct:
+                    pass
+                    # print('SUCCESS : {}'.format(info))
+                    # break
+                else:
+                    failure += 1
+                    # print('FAILURE : RETRY {}'.format(info))
+                    print('FAILURE Verify {} - Retrying'.format(failure))
+                    if failure >= 2:
+                        break
+            except:
+                print('EXCEPTION')
+                return False,
 
         if correct and minmax:
+            # print(idx)
+            # print((min, max, info['c']))
             return idx, (min, max, info['c'])
         if correct and not minmax:
+            # print(idx)
             return idx,
         if not correct:
-            print('Not Correct')
+            # print('Not Correct')
             return False,
         return False,
 
