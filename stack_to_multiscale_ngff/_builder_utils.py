@@ -66,7 +66,6 @@ class _builder_utils:
 
     def scale_name(self,res):
         name = os.path.join(self.out_location,'scale{}'.format(res))
-        print(name)
         return name
     
     @staticmethod

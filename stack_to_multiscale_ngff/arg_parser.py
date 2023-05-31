@@ -51,7 +51,7 @@ optional = [
     (['-win','--windowLabels'],int,'*','WIN',[],'store','START END MIN MAX defining the LUT representation of each channel'),
     (['-n','--name'],str,1,'NAM',[],'store','Name of the dataset'),
     (['-z','--defaultZ'],int,1,'dfZ',[],'store','Default Z-Layer to be displayed during visualization'),
-    (['-dst','--downSampleType'],str,1,'DSM',['max'],'store','Down sample method. Options are mean and max (default: mean')
+    (['-dst','--downSampleType'],str,1,'DSM',['mean'],'store','Down sample method. Options are mean and max (default: mean')
 
     ]
 
