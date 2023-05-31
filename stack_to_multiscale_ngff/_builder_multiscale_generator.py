@@ -13,6 +13,8 @@ These classes are designed to be inherited by the builder class (builder.py)
 
 import os
 import random
+import time
+from itertools import product
 import zarr
 from dask.delayed import delayed
 import dask.array as da
@@ -47,19 +49,22 @@ class _builder_multiscale_generator:
         # for omero window were not specified in the commandline
         # These values are added to zattrs omero:channels
         # out is a list of tuple (min,max,channel)
-        if res == 1 and self.omero_dict['channels']['window'] is None:
-            out = self.down_samp(res, client,minmax=True)
-            self.min = []
-            self.max = []
-            for ch in range(self.Channels):
-                # Sort by channel
-                tmp = [x[-1] for x in out if x[-1][-1] == ch]
-                # Append vlues to list in channel order
-                self.min.append( min([x[0] for x in tmp]) )
-                self.max.append( max([x[1] for x in tmp]) )
-            self.set_omero_window()
-        else:
-            out = self.down_samp(res, client, minmax=False)
+
+        out = self.down_samp_by_chunk_no_overlap(res, client, minmax=False)
+
+        # if res == 1 and self.omero_dict['channels']['window'] is None:
+        #     out = self.down_samp(res, client,minmax=True)
+        #     self.min = []
+        #     self.max = []
+        #     for ch in range(self.Channels):
+        #         # Sort by channel
+        #         tmp = [x[-1] for x in out if x[-1][-1] == ch]
+        #         # Append vlues to list in channel order
+        #         self.min.append( min([x[0] for x in tmp]) )
+        #         self.max.append( max([x[1] for x in tmp]) )
+        #     self.set_omero_window()
+        # else:
+        #     out = self.down_samp(res, client, minmax=False)
     
     
     def write_resolution_0(self,client):
@@ -244,3 +249,230 @@ class _builder_multiscale_generator:
         future = [x for x in future if isinstance(x,tuple) and not isinstance(x[0],bool)]
         
         return future
+
+    def downsample_by_chunk(self, from_res, to_res, down_sample_ratio, from_slice, to_slice, minmax=False):
+
+        '''
+        Slices are for dims (t,c,z,y,x), downsamp only works on 3 dims
+        '''
+
+        # Run proper downsampling method
+        if self.downSampType == 'mean':
+            dsamp_method = self.local_mean_downsample
+        elif self.downSampType == 'max':
+            dsamp_method = self.local_max_downsample
+        # print(self.downSampType)
+        # dsamp_method = self.local_mean_downsample
+
+        from_array = self.open_store(from_res)
+        to_array = self.open_store(to_res)
+
+        data = from_array[from_slice]
+
+        # Calculate min/max of input data
+        if minmax:
+            min, max = data.min(), data.max()
+
+        data = data[0,0]
+        data = dsamp_method(data,down_sample_ratio=down_sample_ratio)
+        data = data[None, None, ...]
+        to_array[to_slice] = data
+        if minmax:
+            return True, (min, max, from_slice[1].start)
+        else:
+            return True,
+
+    @staticmethod
+    def chunk_slice_generator_for_downsample(from_array, to_array, down_sample_ratio=(2, 2, 2), length=False):
+        '''
+        Generate slice for each chunk in array for shape and chunksize
+        Also generate slices for each chunk for an array of 2x size in each dim.
+
+        from_array:
+            array-like obj with .chunksize or .chunks and .shape
+            OR
+            tuple of tuples ((),()) where index [0] == shape, index [1] == chunks
+        to_array:
+            array-like obj with .chunksize or .chunks and .shape
+            OR
+            tuple of tuples ((),()) where index [0] == shape, index [1] == chunks
+
+        Assume dims are (t,c,z,y,x)
+        downsample ratio is a tuple if int (z,y,x)
+        '''
+        if isinstance(to_array, tuple):
+            chunksize = to_array[1]
+            shape = to_array[0]
+        else:
+            try:
+                chunksize = to_array.chunksize
+            except:
+                chunksize = to_array.chunks
+            shape = to_array.shape
+
+        if isinstance(from_array, tuple):
+            from_chunksize = from_array[1]
+            from_shape = from_array[0]
+        else:
+            try:
+                from_chunksize = from_array.chunksize
+            except:
+                from_chunksize = from_array.chunks
+            from_shape = from_array.shape
+
+        chunks = [x // y for x, y in zip(shape, chunksize)]
+        chunk_mod = [x % y > 0 for x, y in zip(shape, chunksize)]
+        chunks = [x + 1 if y else x for x, y in zip(chunks, chunk_mod)]
+
+        reverse_chunks = chunks[::-1]
+        reverse_chunksize = chunksize[::-1]
+        reverse_shape = shape[::-1]
+        reverse_from_shape = from_shape[::-1]
+
+        # Tuple of 3 values
+        reverse_downsample_ratio = down_sample_ratio[::-1]
+
+        if length:
+            yield from product(*map(range, reverse_chunks))
+        else:
+            for a in product(*map(range, reverse_chunks)):
+                start = [x * y for x, y in zip(a, reverse_chunksize)]
+                stop = [(x + 1) * y for x, y in zip(a, reverse_chunksize)]
+                stop = [x if x < y else y for x, y in zip(stop, reverse_shape)]
+
+                to_slices = [slice(x, y) for x, y in zip(start, stop)]
+                # print(to_slices)
+
+                start = [x * y for x,y in zip(start[:-2],reverse_downsample_ratio)] + start[-2:]
+                stop = [x * y for x,y in zip(stop[:-2],reverse_downsample_ratio)] + stop[-2:]
+                stop = [x if x < y else y for x, y in zip(stop, reverse_from_shape)]
+                from_slices = [slice(x, y) for x, y in zip(start, stop)]
+                # print(slices[::-1])
+                yield tuple(from_slices[::-1]), tuple(to_slices[::-1])
+
+    # @staticmethod
+    # def compute_govenor(processing, num_at_once=70, complete=False):
+    #     while len(processing) >= num_at_once:
+    #         processing = [x for x in processing if x.status != 'finished']
+    #         time.sleep(0.1)
+    #     if complete:
+    #         while len(processing) > 0:
+    #             time.sleep(0.1)
+    #             print(f'{len(processing)} remaining')
+    #             processing = [x for x in processing if x.status != 'finished']
+    #     return processing
+
+    @staticmethod
+    def compute_govenor(processing, num_at_once=70, complete=False, keep_results=False):
+        results = []
+        while len(processing) >= num_at_once:
+            still_running = [x.status != 'finished' for x in processing]
+
+            # Partition completed from processing
+            if keep_results:
+                results_tmp = [x for x,y in zip(processing,still_running) if not y]
+                results = results + results_tmp
+                del results_tmp
+            processing = [x for x,y in zip(processing,still_running) if y]
+
+            time.sleep(0.1)
+
+        if complete:
+            while len(processing) > 0:
+                print(f'{len(processing)} remaining', end='\r')
+                still_running = [x.status != 'finished' for x in processing]
+
+                # Partition completed from processing
+                if keep_results:
+                    results_tmp = [x for x, y in zip(processing, still_running) if not y]
+                    results = results + results_tmp
+                    del results_tmp
+                processing = [x for x, y in zip(processing, still_running) if y]
+
+                time.sleep(0.1)
+        return results, processing
+
+    def down_samp_by_chunk_no_overlap(self, res, client, minmax=False):
+
+        # out_location = self.scale_name(res)
+        # parent_location = self.scale_name(res - 1)
+
+        print('Getting Parent Zarr as Dask Array')
+        parent_array = self.open_store(res - 1)
+        print(parent_array.shape)
+        new_array_store = self.get_store(res)
+
+        new_shape = (self.TimePoints, self.Channels, *self.pyramidMap[res]['shape'])
+        print(new_shape)
+        # new_chunks = (1, 1, 16, 512, 4096)
+        new_chunks = (1, 1, *self.pyramidMap[res]['chunk'])
+        print(new_chunks)
+
+        new_array = zarr.zeros(new_shape, chunks=new_chunks, store=new_array_store, overwrite=True,
+                               compressor=self.compressor, dtype=self.dtype)
+        print('new_array, {}, {}'.format(new_array.shape, new_array.chunks))
+
+        from_array_shape_chunks = (
+            (self.TimePoints,self.Channels,*self.pyramidMap[res-1]['shape']),
+            (1,1,*self.pyramidMap[res-1]['chunk'])
+        )
+        to_array_shape_chunks = (
+            (self.TimePoints,self.Channels,*self.pyramidMap[res]['shape']),
+            (1,1,*self.pyramidMap[res]['chunk'])
+        )
+
+        down_sample_ratio = self.pyramidMap[res]['downsamp']
+
+        slices = self.chunk_slice_generator_for_downsample(from_array_shape_chunks, to_array_shape_chunks,
+                                                      down_sample_ratio=down_sample_ratio, length=True)
+        total_slices = len(tuple(slices))
+        slices = self.chunk_slice_generator_for_downsample(from_array_shape_chunks, to_array_shape_chunks,
+                                                      down_sample_ratio=down_sample_ratio, length=False)
+        num = 0
+        processing = []
+        start = time.time()
+
+        minmax = False
+        if res == 1:
+            minmax = True
+        final_results = []
+        for from_slice, to_slice in slices:
+            # print(from_slice)
+            # print(to_slice)
+            num+=1
+            if num % 100 == 1:
+                mins_per_chunk = (time.time() - start) / num / 60
+                mins_remaining = (total_slices - num) * mins_per_chunk
+                mins_remaining = round(mins_remaining, 2)
+                print(f'Computing chunks {num} of {total_slices} : {mins_remaining} mins remaining', end='\r')
+            else:
+                print(f'Computing chunks {num} of {total_slices} : {mins_remaining} mins remaining', end='\r')
+            tmp = delayed(self.downsample_by_chunk)(res-1, res, down_sample_ratio, from_slice, to_slice, minmax=minmax)
+            tmp = client.compute(tmp)
+            processing.append(tmp)
+            del tmp
+            results, processing = self.compute_govenor(processing, num_at_once=round(self.cpu_cores*4), complete=False, keep_results=minmax)
+
+            final_results = final_results + results
+        results, processing = self.compute_govenor(processing, num_at_once=round(self.cpu_cores*4), complete=True, keep_results=minmax)
+        final_results = final_results + results
+
+        print('Gathering Results')
+        final_results = client.gather(final_results)
+        # return final_results
+
+        if res == 1 and self.omero_dict['channels']['window'] is None:
+            self.min = []
+            self.max = []
+            for ch in range(self.Channels):
+                print('Sorting Min/Max')
+                # Sort by channel
+                print(final_results)
+                tmp = [x[-1] for x in final_results if x[-1][-1] == ch]
+                print(tmp)
+                # Append vlues to list in channel order
+                self.min.append( min([x[0] for x in tmp]) )
+                self.max.append( max([x[1] for x in tmp]) )
+            print('Setting OMERO Window')
+            self.set_omero_window()
+
