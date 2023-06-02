@@ -97,11 +97,11 @@ class _builder_multiscale_generator:
     
     
     def write_resolution_0(self,client):
-        
+
         print('Building Virtual Stack')
         stack = []
         for color in self.filesList:
-            
+
             s = self.organize_by_groups(color,self.origionalChunkSize[2])
             # test_image = tiff_manager(s[0][0]) #2D manager
             # chunk_depth = (test_image.shape[1]//4) - (test_image.shape[1]//4)%storage_chunks[3]
@@ -117,7 +117,7 @@ class _builder_multiscale_generator:
             # test_image.chunks = (test_image.chunks[0],test_image.chunks[1]//2,test_image.chunks[2]*2)
             print(test_image.shape)
             print(test_image.chunks)
-            
+
             s = [test_image.clone_manager_new_file_list(x) for x in s]
             print(len(s))
             for ii in s:
@@ -135,14 +135,14 @@ class _builder_multiscale_generator:
             stack.append(s)
         stack = da.stack(stack)
         stack = stack[None,...]
-    
-    
+
+
         print(stack)
-        
+
         store = self.get_store(0)
-        
+
         z = zarr.zeros(stack.shape, chunks=self.origionalChunkSize, store=store, overwrite=True, compressor=self.compressor,dtype=stack.dtype)
-        
+
         # print(client.run(lambda: os.environ["HDF5_USE_FILE_LOCKING"]))
         if self.performance_report:
             with performance_report(filename=os.path.join(self.out_location,'performance_res_0.html')):
@@ -157,7 +157,109 @@ class _builder_multiscale_generator:
             if self.progress:
                 progress(to_store)
             to_store = client.gather(to_store)
-    
+
+    # def write_resolution_0(self, client):
+    #
+    #     '''
+    #     Attempt to do single operation res 0 and res 1
+    #     NOT WORKING NEED TO FIGURE CUT CHUNK ALIGNMENT AND COMPUTE
+    #     '''
+    #
+    #     print('Building Virtual Stack')
+    #     stack = []
+    #     for color in self.filesList:
+    #
+    #         s = self.organize_by_groups(color, self.origionalChunkSize[2])
+    #         # test_image = tiff_manager(s[0][0]) #2D manager
+    #         # chunk_depth = (test_image.shape[1]//4) - (test_image.shape[1]//4)%storage_chunks[3]
+    #         # chunk_depth = self.determine_read_depth(self.origionalChunkSize,
+    #         #                                         num_workers=self.sim_jobs,
+    #         #                                         z_plane_shape=test_image.shape,
+    #         #                                         chunk_limit_GB=self.res0_chunk_limit_GB)
+    #         test_image = tiff_manager_3d(s[0])
+    #         # optimum_chunks = utils.optimize_chunk_shape_3d(test_image.shape,test_image.chunks,test_image.dtype,self.res0_chunk_limit_GB)
+    #         optimum_chunks = utils.optimize_chunk_shape_3d_2(test_image.shape, test_image.chunks,
+    #                                                          self.origionalChunkSize[2:], test_image.dtype,
+    #                                                          self.res0_chunk_limit_GB)
+    #         test_image.chunks = optimum_chunks
+    #         # ## TESTING PURPOSES ONLY
+    #         # test_image.chunks = (test_image.chunks[0],test_image.chunks[1]//2,test_image.chunks[2]*2)
+    #         print(test_image.shape)
+    #         print(test_image.chunks)
+    #
+    #         s = [test_image.clone_manager_new_file_list(x) for x in s]
+    #         print(len(s))
+    #         for ii in s:
+    #             print(ii.chunks)
+    #             print(len(ii.fileList))
+    #
+    #         stack.append(s)
+    #
+    #     # print(s[-3].chunks)
+    #     print('From_array')
+    #     print(s[0].dtype)
+    #     stack = tiff_manager_3d_to_5d(stack)
+    #
+    #     print(stack)
+    #
+    #     # Create fullres zarr
+    #     store = self.get_store(0)
+    #
+    #     z = zarr.zeros(stack.shape, chunks=self.origionalChunkSize, store=store, overwrite=True,
+    #                    compressor=self.compressor, dtype=stack.dtype)
+    #
+    #     # Create res 1 zarr
+    #     storeds = self.get_store(1)
+    #
+    #     ds = zarr.zeros(self.pyramidMap[1]['shape'], chunks=self.pyramidMap[1]['chunk'], store=storeds, overwrite=True,
+    #                    compressor=self.compressor, dtype=stack.dtype)
+    #
+    #     down_sample_ratio = self.pyramidMap[1]['downsamp']
+    #     align_chunks_for_ds = [x//y for x,y in zip(stack.chunks[2:],down_sample_ratio)]
+    #     align_chunks_for_ds = [x if x<y else y for x,y in zip(align_chunks_for_ds,ds.shape[2:])]
+    #
+    #     slices = self.chunk_slice_generator_for_downsample((stack.shape,stack.chunks), (ds.shape,align_chunks_for_ds),
+    #                                                        down_sample_ratio=down_sample_ratio, length=True)
+    #     total_slices = len(tuple(slices))
+    #     slices = self.chunk_slice_generator_for_downsample((stack.shape, stack.chunks), (ds.shape, align_chunks_for_ds),
+    #                                                        down_sample_ratio=down_sample_ratio, length=True)
+    #
+    #     num = 0
+    #     processing = []
+    #     start = time.time()
+    #     final_results = []
+    #     for from_slice, to_slice in slices:
+    #         # print(from_slice)
+    #         # print(to_slice)
+    #         num += 1
+    #         if num % 100 == 1:
+    #             mins_per_chunk = (time.time() - start) / num / 60
+    #             mins_remaining = (total_slices - num) * mins_per_chunk
+    #             mins_remaining = round(mins_remaining, 2)
+    #             print(f'Computing chunks {num} of {total_slices} : {mins_remaining} mins remaining', end='\r')
+    #         else:
+    #             print(f'Computing chunks {num} of {total_slices} : {mins_remaining} mins remaining', end='\r')
+    #         tmp = delayed(self.downsample_by_chunk)(res - 1, res, down_sample_ratio, from_slice, to_slice,
+    #                                                 minmax=minmax)
+    #         tmp = client.compute(tmp)
+    #         processing.append(tmp)
+    #         del tmp
+    #         results, processing = self.compute_govenor(processing, num_at_once=round(self.cpu_cores * 4),
+    #                                                    complete=False, keep_results=minmax)
+    #
+    #         final_results = final_results + results
+    #
+    #     results, processing = self.compute_govenor(processing, num_at_once=round(self.cpu_cores * 4), complete=True,
+    #                                                keep_results=minmax)
+    #     final_results = final_results + results
+    #
+    #     if minmax:
+    #         print('                                                                                      ', end='\r')
+    #         print('Gathering Results')
+    #         final_results = client.gather(final_results)
+    #         # return final_results
+    #
+    #     return final_results
     
     def down_samp(self,res,client,minmax=False):
         
