@@ -13,13 +13,13 @@ from numcodecs import Blosc
 try:
     from imagecodecs.numcodecs import JpegXl as Jpegxl
     numcodecs.register_codec(Jpegxl)
-    print('Imported JpegXl')
+    # print('Imported JpegXl')
 except:
     pass
 try:
     from imagecodecs.numcodecs import Jpegxl
     numcodecs.register_codec(Jpegxl)
-    print('Imported Jpegxl')
+    # print('Imported Jpegxl')
 except:
     pass
 # from imagecodecs.numcodecs import Jpegxl

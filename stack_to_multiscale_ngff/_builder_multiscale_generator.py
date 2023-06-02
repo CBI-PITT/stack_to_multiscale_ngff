@@ -14,6 +14,7 @@ These classes are designed to be inherited by the builder class (builder.py)
 import os
 import random
 import time
+import math
 from itertools import product
 import zarr
 from dask.delayed import delayed
@@ -50,8 +51,36 @@ class _builder_multiscale_generator:
         # These values are added to zattrs omero:channels
         # out is a list of tuple (min,max,channel)
 
-        out = self.down_samp_by_chunk_no_overlap(res, client, minmax=False)
+        # out = self.down_samp_by_chunk_no_overlap(res, client, minmax=False)
 
+        minmax = False
+        where_to_calculate_min_max = 2
+        if len(self.pyramidMap) == 2 and res == 1:
+            minmax = True
+        elif res == len(self.pyramidMap) // where_to_calculate_min_max:
+            minmax = True
+        elif len(self.pyramidMap) // where_to_calculate_min_max == 0:
+            minmax = True
+
+
+        results = self.down_samp_by_chunk_no_overlap(res, client, minmax=minmax)
+
+        if minmax and self.omero_dict['channels']['window'] is None:
+            self.min = []
+            self.max = []
+            for ch in range(self.Channels):
+                print('Sorting Min/Max')
+                # Sort by channel
+                tmp = [x[-1] for x in results if x[-1][-1] == ch]
+                print(tmp)
+                # Append vlues to list in channel order
+                self.min.append( min([x[0] for x in tmp]) )
+                self.max.append( max([x[1] for x in tmp]) )
+            print('Setting OMERO Window')
+            self.set_omero_window()
+
+
+        ## Old Method
         # if res == 1 and self.omero_dict['channels']['window'] is None:
         #     out = self.down_samp(res, client,minmax=True)
         #     self.min = []
@@ -250,6 +279,13 @@ class _builder_multiscale_generator:
         
         return future
 
+    ##############################################################################################################
+    '''
+    Functions below are newer downsample control for chunk-by-chunk method
+    '''
+    ##############################################################################################################
+
+
     def downsample_by_chunk(self, from_res, to_res, down_sample_ratio, from_slice, to_slice, minmax=False):
 
         '''
@@ -282,8 +318,118 @@ class _builder_multiscale_generator:
         else:
             return True,
 
-    @staticmethod
-    def chunk_slice_generator_for_downsample(from_array, to_array, down_sample_ratio=(2, 2, 2), length=False):
+
+    # def chunk_increase_to_limit_3d(self,image_shape,starting_chunks,chunk_limit_in_GB):
+    #
+    #     # Determine chunk values to start at
+    #     z = starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
+    #     y = starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
+    #     x = starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
+    #
+    #     previous_chunks = (z,y,x)
+    #     current_chunks = (z,y,x)
+    #
+    #     # Iterate 1 axis at a time increasing chunk size by increase_rate until the chunk_limit_in_MB is reached
+    #     idx=0
+    #     while True:
+    #         print(f'First chunks to try {current_chunks}')
+    #         if utils.get_size_GB(current_chunks,self.dtype) >= chunk_limit_in_GB:
+    #             current_chunks = previous_chunks
+    #             print(f'Final chunk to process {current_chunks}')
+    #             break
+    #         else:
+    #             previous_chunks = current_chunks
+    #
+    #         if idx%3 == 0:
+    #             z = z + starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
+    #         if idx%3 == 1:
+    #             y = y + starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
+    #         if idx%3 == 2:
+    #             x = x + starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
+    #
+    #         current_chunks = (z,y,x)
+    #         idx+=1
+    #
+    #     return current_chunks
+
+
+    def chunk_increase_to_limit_3d(self,image_shape,starting_chunks,chunk_limit_in_GB):
+
+        # Determine chunk values to start at
+        z = starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
+        y = starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
+        x = starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
+
+        previous_chunks = (z,y,x)
+        current_chunks = (z,y,x)
+
+        # Iterate 1 axis at a time increasing chunk size by increase_rate until the chunk_limit_in_MB is reached
+        while True:
+            print(f'Current chunk to try {current_chunks}')
+            if utils.get_size_GB(current_chunks,self.dtype) >= chunk_limit_in_GB:
+                current_chunks = previous_chunks
+                print(f'Final chunk to process {current_chunks}')
+                break
+            else:
+                previous_chunks = current_chunks
+
+            if z < image_shape[0]:
+                z = z + starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
+            elif y < image_shape[1]:
+                y = y + starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
+            elif x < image_shape[2]:
+                x = x + starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
+            else:
+                break
+
+            current_chunks = (z,y,x)
+
+        return current_chunks
+
+    # def chunk_increase_to_limit_3d(self,image_shape,starting_chunks,chunk_limit_in_GB):
+    #
+    #     # Determine chunk values to start at
+    #     z = starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
+    #     y = starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
+    #     x = starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
+    #
+    #     previous_chunks = (z,y,x)
+    #     current_chunks = (z,y,x)
+    #
+    #     rank_dict = {}
+    #     idx = 0
+    #     for axis,chunk_size in enumerate((z,y,x), current_chunks):
+    #         if chunk_size == min(current_chunks):
+    #             rank_dict[0] = (axis,chunk_size)
+    #         elif chunk_size == max(current_chunks):
+    #             rank_dict[2] = (axis,chunk_size)
+    #         else:
+    #             rank_dict[1] = (axis, chunk_size)
+    #
+    #     # Iterate 1 axis at a time increasing by chunk size along the smallest chunk axis
+    #     while True:
+    #         print(f'First chunks to try {current_chunks}')
+    #         if utils.get_size_GB(current_chunks,self.dtype) >= chunk_limit_in_GB:
+    #             current_chunks = previous_chunks
+    #             print(f'Final chunk to process {current_chunks}')
+    #             break
+    #         else:
+    #             previous_chunks = current_chunks
+    #
+    #         if
+    #         if z < image_shape[0]:
+    #             z = z + starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
+    #         elif y < image_shape[1]:
+    #             y = y + starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
+    #         elif x < image_shape[2]:
+    #             x = x + starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
+    #
+    #         current_chunks = (z,y,x)
+    #
+    #     return current_chunks
+
+
+    def chunk_slice_generator_for_downsample(self,from_array, to_array, down_sample_ratio=(2, 2, 2), length=False):
         '''
         Generate slice for each chunk in array for shape and chunksize
         Also generate slices for each chunk for an array of 2x size in each dim.
@@ -319,6 +465,16 @@ class _builder_multiscale_generator:
             except:
                 from_chunksize = from_array.chunks
             from_shape = from_array.shape
+
+        # Chunks are calculated for to_array
+        # optimum_chunks = self.chunk_increase_to_limit_3d(shape[2:],chunksize[2:],self.res_chunk_limit_GB // math.prod(down_sample_ratio) // 1)
+        optimum_chunks = self.chunk_increase_to_limit_3d(shape[2:], chunksize[2:],
+                                                         self.res_chunk_limit_GB)
+
+        chunksize = list(chunksize[:2]) + list(optimum_chunks)
+        print(f'Chunksize for processing downsampled array: {chunksize}')
+        # chunk_multiply = 2
+        # chunksize = list(chunksize[:2]) + [x*chunk_multiply for x in chunksize[-3:]]
 
         chunks = [x // y for x, y in zip(shape, chunksize)]
         chunk_mod = [x % y > 0 for x, y in zip(shape, chunksize)]
@@ -379,6 +535,8 @@ class _builder_multiscale_generator:
 
         if complete:
             while len(processing) > 0:
+                print('                                                                                      ',
+                      end='\r')
                 print(f'{len(processing)} remaining', end='\r')
                 still_running = [x.status != 'finished' for x in processing]
 
@@ -432,9 +590,6 @@ class _builder_multiscale_generator:
         processing = []
         start = time.time()
 
-        minmax = False
-        if res == 1:
-            minmax = True
         final_results = []
         for from_slice, to_slice in slices:
             # print(from_slice)
@@ -454,25 +609,15 @@ class _builder_multiscale_generator:
             results, processing = self.compute_govenor(processing, num_at_once=round(self.cpu_cores*4), complete=False, keep_results=minmax)
 
             final_results = final_results + results
+
         results, processing = self.compute_govenor(processing, num_at_once=round(self.cpu_cores*4), complete=True, keep_results=minmax)
         final_results = final_results + results
 
-        print('Gathering Results')
-        final_results = client.gather(final_results)
-        # return final_results
+        if minmax:
+            print('                                                                                      ',end='\r')
+            print('Gathering Results')
+            final_results = client.gather(final_results)
+            # return final_results
 
-        if res == 1 and self.omero_dict['channels']['window'] is None:
-            self.min = []
-            self.max = []
-            for ch in range(self.Channels):
-                print('Sorting Min/Max')
-                # Sort by channel
-                print(final_results)
-                tmp = [x[-1] for x in final_results if x[-1][-1] == ch]
-                print(tmp)
-                # Append vlues to list in channel order
-                self.min.append( min([x[0] for x in tmp]) )
-                self.max.append( max([x[1] for x in tmp]) )
-            print('Setting OMERO Window')
-            self.set_omero_window()
+        return final_results
 

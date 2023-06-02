@@ -72,7 +72,7 @@ class builder(_builder_downsample,
         self.directToFinalChunks = directToFinalChunks
         
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 4 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
-        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 6 #Fudge factor for maximizing data being processed with available memory during downsample phase
+        self.res_chunk_limit_GB = self.mem / self.cpu_cores / 24 #Fudge factor for maximizing data being processed with available memory during downsample phase
         
         # Makes store location and initial group
         # do not make a class attribute because it may not pickle when computing over dask

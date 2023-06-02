@@ -143,10 +143,16 @@ def optimize_chunk_shape_3d_2(image_shape,origional_chunks,output_chunks,dtype,c
         # last_size = get_size_GB(current_chunks,dtype)
         last_shape = current_chunks
         
-        chunk_iter_idx = idx%2
-        if chunk_iter_idx == 0 and chunk_bigger_than_y == False:
+        # chunk_iter_idx = idx%2
+        # if chunk_iter_idx == 0 and chunk_bigger_than_y == False:
+        #     current_chunks = (origional_chunks[0],current_chunks[1]+output_chunks[1],current_chunks[2])
+        # elif chunk_iter_idx == 1 and chunk_bigger_than_x == False:
+        #     current_chunks = (origional_chunks[0],current_chunks[1],current_chunks[2]+output_chunks[2])
+
+        # Iterate over y first then x
+        if chunk_bigger_than_y == False:
             current_chunks = (origional_chunks[0],current_chunks[1]+output_chunks[1],current_chunks[2])
-        elif chunk_iter_idx == 1 and chunk_bigger_than_x == False:
+        elif chunk_bigger_than_x == False:
             current_chunks = (origional_chunks[0],current_chunks[1],current_chunks[2]+output_chunks[2])
             
         current_size = get_size_GB(current_chunks,dtype)

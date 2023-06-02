@@ -232,7 +232,8 @@ class _builder_downsample:
                   z::down_sample_ratio[0],
                   y::down_sample_ratio[1],
                   x::down_sample_ratio[2]
-                  ][0:canvas.shape[0] - 1, 0:canvas.shape[1] - 1, 0:canvas.shape[2] - 1]
+                  ][0:canvas.shape[0], 0:canvas.shape[1], 0:canvas.shape[2]]
+
             canvas_tmp[0:tmp.shape[0], 0:tmp.shape[1], 0:tmp.shape[2]] = tmp
             np.maximum(canvas, canvas_tmp, out=canvas)
         return self.dtype_convert(canvas)
