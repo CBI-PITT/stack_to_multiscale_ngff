@@ -160,11 +160,11 @@ class _builder_downsample:
                 else:
                     failure += 1
                     # print('FAILURE : RETRY {}'.format(info))
-                    print('FAILURE Verify {} - Retrying'.format(failure))
+                    # print('FAILURE Verify {} - Retrying'.format(failure))
                     if failure >= 2:
                         break
             except:
-                print('EXCEPTION')
+                # print('EXCEPTION')
                 return False,
 
         if correct and minmax:
