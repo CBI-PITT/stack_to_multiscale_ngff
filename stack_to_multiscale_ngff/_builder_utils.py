@@ -28,17 +28,23 @@ from zarr_stores.h5_nested_store import H5_Nested_Store
 class _builder_utils:
     
     
-    def open_store(self,res):
-        return zarr.open(self.get_store(res))
+    def open_store(self,res, mode='a'):
+        return zarr.open(self.get_store(res, mode=mode))
     
-    def get_store(self,res):
-        return self.get_store_from_path(self.scale_name(res))
+    def get_store(self,res, mode='a'):
+        return self.get_store_from_path(self.scale_name(res), mode=mode)
     
-    def get_store_from_path(self,path):
+    def get_store_from_path(self,path, mode='a'):
         # Add custom methods for each store type, if available.
         try:
             if self.zarr_store_type == H5_Nested_Store:
-                store = self.zarr_store_type(path, write_direct=True, swmr=True, container_ext='h5', distribuited_lock=True, auto_verify_write=False)
+                # print(f'MODE MODE MODE = {mode}')
+                if mode == 'r':
+                    store = self.zarr_store_type(path, write_direct=True, swmr=True, container_ext='h5',
+                                                 distribuited_lock=True, auto_verify_write=False, mode='r')
+                else:
+                    store = self.zarr_store_type(path, write_direct=True, swmr=True, container_ext='h5',
+                                                 distribuited_lock=True, auto_verify_write=False)
             # elif self.zarr_store_type == H5_Shard_Store:
             #     store = self.zarr_store_type(path,verbose=self.verbose,alternative_lock_file_path=self.tmp_dir)
             else:

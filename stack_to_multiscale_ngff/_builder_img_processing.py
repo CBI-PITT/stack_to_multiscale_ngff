@@ -160,11 +160,11 @@ class _builder_downsample:
                 else:
                     failure += 1
                     # print('FAILURE : RETRY {}'.format(info))
-                    print('FAILURE Verify {} - Retrying'.format(failure))
+                    # print('FAILURE Verify {} - Retrying'.format(failure))
                     if failure >= 2:
                         break
             except:
-                print('EXCEPTION')
+                # print('EXCEPTION')
                 return False,
 
         if correct and minmax:
@@ -232,7 +232,8 @@ class _builder_downsample:
                   z::down_sample_ratio[0],
                   y::down_sample_ratio[1],
                   x::down_sample_ratio[2]
-                  ][0:canvas.shape[0] - 1, 0:canvas.shape[1] - 1, 0:canvas.shape[2] - 1]
+                  ][0:canvas.shape[0], 0:canvas.shape[1], 0:canvas.shape[2]]
+
             canvas_tmp[0:tmp.shape[0], 0:tmp.shape[1], 0:tmp.shape[2]] = tmp
             np.maximum(canvas, canvas_tmp, out=canvas)
         return self.dtype_convert(canvas)

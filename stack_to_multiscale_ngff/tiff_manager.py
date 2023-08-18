@@ -276,8 +276,74 @@ class tiff_manager_3d:
         new = deepcopy(self)
         new._change_file_list(fileList)
         return new
-    
-    
+
+
+class tiff_manager_3d_to_5d:
+    '''
+    Given a list of 3d tiff_managers that each represent a color channel, create a 5 dimensional manager where time
+    is always assumed to be a shape of 1
+
+    Enable the creation of a virtual array that has some of the elements of a dask array or zarr array but none of
+    the computational overhead
+    '''
+
+    def __init__(self, list_of_tiff_manager_3d):
+
+        assert isinstance(list_of_tiff_manager_3d, (list, tuple, tiff_manager_3d))
+        if isinstance(list_of_tiff_manager_3d, (list, tuple)):
+            for ii in list_of_tiff_manager_3d:
+                assert isinstance(ii, tiff_manager_3d)
+
+        if isinstance(list_of_tiff_manager_3d, (list, tuple)):
+            self.stack = tuple(list_of_tiff_manager_3d)
+        else:
+            self.stack = list_of_tiff_manager_3d,
+
+        self.shape = (1, len(self.stack), *self.stack[0].shape)
+        self.nbytes = self.stack[0].nbytes * len(self.stack)
+        self.ndim = 5
+        self.chunks = (1, 1, 1, *self.stack[0].chunks)
+        self.dtype = self.stack[0].dtype
+
+    def __getitem__(self, key):
+        # REQUIRES A 5-DIM tuple of slices
+
+        # Hack to speed up dask array conversions (not tested to work with dask)
+        if key == (slice(0, 0, None),) * self.ndim:
+            return np.asarray([], dtype=self.dtype)
+
+        key = [slice(x, x + 1) if isinstance(x, int) else x for x in key]
+        # key = [slice(None) if x is None else x for x in key]
+        print(key)
+
+        new_key = []
+        for idx in range(5):
+            if key[idx] == slice(None):
+                new_key.append(slice(0, self.shape[idx]))
+            elif isinstance(key[idx], slice):
+                new_key.append(key[idx])
+            else:
+                new_key.append(key[idx])
+
+        key = new_key
+        print(key)
+
+        t = 1
+        c = key[1].stop - key[1].start if key[1] is not None else self.shape[1]
+        z = key[2].stop - key[2].start if key[2] is not None else self.shape[2]
+        y = key[3].stop - key[3].start if key[3] is not None else self.shape[3]
+        x = key[4].stop - key[4].start if key[4] is not None else self.shape[4]
+
+        canvas = np.zeros((t, c, z, y, x), dtype=self.dtype)
+        print(canvas.shape)
+        for cc in range(key[1].start, key[1].stop):
+            print((slice(0, 1), slice(cc, cc + 1), *key[2:]))
+
+            canvas[(slice(0, 1), slice(cc, cc + 1), slice(0, z), slice(0, y), slice(0, x))] = self.stack[cc][
+                (*key[2:],)]
+        return canvas
+
+
 def get_size_GB(shape,dtype):
     
     current_size = math.prod(shape)/1024**3
