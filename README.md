@@ -191,7 +191,7 @@ The user can specify this information manually using the following options:
 
 4. LUT Windows: START END MIN MAX
 
-<img src="https://raw.githubusercontent.com/CBI-PITT/stack_to_multiscale_ngff/develop/stack_to_multiscale_ngff/images/LUT.png" alt="LUT" width="200"/>
+<img src="https://raw.githubusercontent.com/CBI-PITT/stack_to_multiscale_ngff/main/stack_to_multiscale_ngff/images/LUT.png" alt="LUT" width="200"/>
 
 ```bash
  --windowLabels 1771 8085 1111 11944 500 20000 0 65534 0 65534 0 65534
