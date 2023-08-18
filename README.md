@@ -110,7 +110,7 @@ Here we specific the file extension for the files.
 
 **Usage:**
 
-```bash
+```
 python ~/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py --help
 
 usage: builder.py [-h] [-oc O O O O O] [-fc F F F F F] [-cpu C] [-mem M] [-tmp TMP] [-ft FT] [-s S S S S S] [-cmp CMP] [-cl CMP] [-ch [CH [CH ...]]] [-clr [CLR [CLR ...]]]
