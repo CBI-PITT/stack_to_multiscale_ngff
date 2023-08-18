@@ -9,6 +9,7 @@ import os, glob, time, sys, shutil
 import dask
 
 import numcodecs
+import zarr.storage
 from numcodecs import Blosc
 try:
     from imagecodecs.numcodecs import JpegXl as Jpegxl
@@ -30,7 +31,7 @@ except:
 # Image.MAX_IMAGE_PIXELS = 2000000000
 # ImageFile.LOAD_TRUNCATED_IMAGES = False
 
-# Import the main class that orchistrates building the multscale ome-zarr
+# Import the main class that orchestrates building the multiscale ome-zarr
 from stack_to_multiscale_ngff._builder_init import builder
 
 # Import custom zarr store types
@@ -145,18 +146,23 @@ if __name__ == '__main__':
         compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
     elif args.compression[0].lower() == 'jpegxl':
         if args.lossy:
-            assert args.clevel[0] >= 0 and args.clevel[0] <= 100, 'Compression Level must be between 0-100 for jpegxl'
+            assert args.clevel[0] >= 50 and args.clevel[0] <= 100, 'Compression Level must be between 50-100 for lossy jpegxl'
             compressor = Jpegxl(level=args.clevel[0], lossless=False)
         else:
             compressor = Jpegxl(lossless=True)
 
-        
+    if out_location.lower().endswith('.ome.zarr'):
+        zarr_store_type = zarr.storage.NestedDirectoryStore
+    elif out_location.lower().endswith('.omehans'):
+        zarr_store_type = H5_Nested_Store
+    else:
+        zarr_store_type = zarr.storage.NestedDirectoryStore
 
     #Initialize builder class
     mr = builder(in_location, out_location, fileType=fileType,
             geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
             cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
-            zarr_store_type=H5_Nested_Store,
+            zarr_store_type=zarr_store_type,
             verify_zarr_write=verify_zarr_write, omero_dict=omero,
                  skip=skip, downSampType=downSampleType, directToFinalChunks=args.directToFinalChunks)
 

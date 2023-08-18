@@ -113,6 +113,9 @@ class _builder_multiscale_generator:
             # optimum_chunks = utils.optimize_chunk_shape_3d(test_image.shape,test_image.chunks,test_image.dtype,self.res0_chunk_limit_GB)
             optimum_chunks = utils.optimize_chunk_shape_3d_2(test_image.shape,test_image.chunks,self.origionalChunkSize[2:],test_image.dtype,self.res0_chunk_limit_GB)
             test_image.chunks = optimum_chunks
+            print('##########################')
+            print(optimum_chunks)
+            print('##########################')
             # ## TESTING PURPOSES ONLY
             # test_image.chunks = (test_image.chunks[0],test_image.chunks[1]//2,test_image.chunks[2]*2)
             print(test_image.shape)
@@ -267,7 +270,7 @@ class _builder_multiscale_generator:
         parent_location = self.scale_name(res-1)
         
         print('Getting Parent Zarr as Dask Array')
-        parent_array = self.open_store(res-1)
+        parent_array = self.open_store(res-1, mode='r')
         print(parent_array.shape)
         new_array_store = self.get_store(res)
         
@@ -402,7 +405,7 @@ class _builder_multiscale_generator:
         # print(self.downSampType)
         # dsamp_method = self.local_mean_downsample
 
-        from_array = self.open_store(from_res)
+        from_array = self.open_store(from_res, mode='r')
         to_array = self.open_store(to_res)
 
         data = from_array[from_slice]
@@ -658,7 +661,7 @@ class _builder_multiscale_generator:
         # parent_location = self.scale_name(res - 1)
 
         print('Getting Parent Zarr as Dask Array')
-        parent_array = self.open_store(res - 1)
+        parent_array = self.open_store(res - 1, mode='r')
         print(parent_array.shape)
         new_array_store = self.get_store(res)
 
