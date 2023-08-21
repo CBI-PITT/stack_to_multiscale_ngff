@@ -253,7 +253,7 @@ Default (lossless): zstd, compression level 5, SHUFFLE filter
 
 SLURM:
 
-stack_to_multiscale_ngff attempts to determine the number of CPU cores available and the amount of RAM that can be used for conversion.  The application attempts to use every CPU and maximize the amount of RAM to accelerate the conversion process.  However, this fails to work properly when running the application on a SLURM allocation. *The user must manually specific the number of cores and the RAM using the switches -cpu, -mem*
+stack_to_multiscale_ngff attempts to determine the number of CPU cores available and the amount of RAM that can be used for conversion.  The application attempts to use every CPU and maximize the amount of RAM to accelerate the conversion process.  However, this fails to work properly when running the application on a SLURM allocation. *The user must manually specify the number of cores and the amount of RAM using the switches -cpu, -mem*
 
 For an allocation with 32 cores and 512GB of RAM
 
