@@ -36,7 +36,7 @@ optional = [
     (['-fc','--finalChunkSize'],int,5,'F',(1,1,16,256,256),'store','The chunk size for the lowest resolution scaleX. Must be 5 integers for axes (TCZYX).'),
     (['-cpu'],int,1,'C',[os.cpu_count()],'store','Number of cpus which are available'),
     (['-mem'],int,1,'M',[int(psutil.virtual_memory().free/1024/1024/1024*0.8)],'store','Available RAM in GB: default is 0.8x of free RAM'),
-    (['-tmp','--tmpLocation'],str,1,'TMP',['/CBI_FastStore/tmp_dask'],'store','Location for temp files --> high-speed local storage is suggested'),
+    (['-tmp','--tmpLocation'],str,1,'TMP',[],'store','Location for temp files --> high-speed local storage is suggested'),
     (['-ft','--fileType'],str,1,'FT',['tif'],'store','File type for input --> Currently tif,tiff,jp2 and some nifti are supported'),
     (['-s','--scale'],float,5,'S',(1,1,1,1,1),'store','5-dim scale of the datasets (tczyx) in MICRONS'),
 
