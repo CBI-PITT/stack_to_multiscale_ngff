@@ -47,7 +47,7 @@ pip install -e .
 Example:
 
 ```bash
-python -i  ~/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py '/path/to/tiff/stack/channel1' '/path/to/tiff/stack/channel2' '/path/to/tiff/stack/channel3' '/path/to/output/multiscale.omehans' --scale 1 1 0.280 0.114 0.114 --origionalChunkSize 1 1 1 1024 1024 --finalChunkSize 1 1 64 64 64 --fileType tif
+python ~/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py '/path/to/tiff/stack/channel1' '/path/to/tiff/stack/channel2' '/path/to/tiff/stack/channel3' '/path/to/output/multiscale.omehans' --scale 1 1 0.280 0.114 0.114 --origionalChunkSize 1 1 1 1024 1024 --finalChunkSize 1 1 64 64 64 --fileType tif
 ```
 
 
@@ -55,10 +55,10 @@ python -i  ~/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py '/path
 <u>Let's break down how to use the converter:</u>
 
 ```bash
-python -i  ~/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py
+python ~/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py
 ```
 
-Above, we specify that we want to run the 'builder.py' script in a python interactive session "python -i"
+Above, we specify that we want to run the 'builder.py' script which manages the conversion.
 
 
 
