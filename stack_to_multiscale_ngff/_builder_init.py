@@ -95,6 +95,12 @@ class builder(_builder_downsample,
             # Can designate each directory with image files
             for ii in self.in_location:
                 filesList.append(natsorted(glob.glob(os.path.join(ii,'*.{}'.format(self.fileType)))))
+
+        elif len(glob.glob(os.path.join(self.in_location,'*.{}'.format(self.fileType)))) > 0:
+            filesList.append(
+                natsorted(glob.glob(os.path.join(self.in_location, '*.{}'.format(self.fileType))))
+            )
+
         else:
             # Will find nested directories with image files
             ## Assume files are laid out as "color_dir/images"
