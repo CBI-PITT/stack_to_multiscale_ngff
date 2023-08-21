@@ -76,7 +76,7 @@ Next we pass the paths(s) to directories where a TIFF z-series is stored.  Each 
 # '/path/to/output/multiscale.ome.zarr' # OME-NGFF standard
 ```
 
-Next we pass the output path.  The OME-Zarr will be stored in this path.  The default zarr storage structure is the zarr [NestedDirectoryStore](https://zarr.readthedocs.io/en/stable/api/storage.html#zarr.storage.NestedDirectoryStore) which is designated to conform with the [OME-NGFF standard](https://ngff.openmicroscopy.org/latest/#image-layout).  For compatibility purposes, we recommend appending the extension  '.ome.zarr' which signals to down-stream applications how to understand the data.  However, the extension 'omehans' can be used as an alternative which will store the data in a [H5_Nested_Store](https://github.com/CBI-PITT/zarr_stores/blob/main/zarr_stores/h5_nested_store.py) format which uses sharding to substantially reduce the number of files created.
+Next we pass the output path.  The OME-Zarr will be stored in this path.  The default zarr storage structure is the zarr [NestedDirectoryStore](https://zarr.readthedocs.io/en/stable/api/storage.html#zarr.storage.NestedDirectoryStore) which is designated to conform with the [OME-NGFF standard](https://ngff.openmicroscopy.org/latest/#image-layout).  For compatibility purposes, we recommend appending the extension  '.ome.zarr' which signals to down-stream applications how to understand the data.  However, the extension 'omehans' can be used as an alternative which will store the data in a [H5_Nested_Store](https://github.com/CBI-PITT/zarr_stores/blob/main/zarr_stores/h5_nested_store.py) format which uses sharding along the z-dimension to substantially reduce the number of files created.
 
 
 
@@ -84,17 +84,17 @@ Next we pass the output path.  The OME-Zarr will be stored in this path.  The de
 --scale 1 1 0.280 0.114 0.114
 ```
 
-Here we specify the scale in microns of the original data. Scale is always represented as 5-axis with axis t and c always being 1 and axes z, y, and x being indicated in microns. The scale of our example in microns is (0.280 0.114 0.114):(z,y,x). time and channel are always specified as 1 (1,1):(t,c).  Thus scale for this example is specified as:   --scale 1 1 0.280 0.114 0.114
+Here we specify the scale in microns of the original data. Scale is always represented as 5-axis with axis t and c always being 1 and axes z, y, and x being indicated in microns. The scale of our example in microns is (0.280 0.114 0.114):(z,y,x). time and channel are always specified as 1 (1,1):(t,c).  Thus scale for this example scale is specified as:   --scale 1 1 0.280 0.114 0.114
 
 
 
 ```bash
---origionalChunkSize 1 1 1 1024 1024 --finalChunkSize 1 1 16 256 256
+--origionalChunkSize 1 1 1 1024 1024 --finalChunkSize 1 1 64 64 64
 ```
 
-Here we specify the chunk size to be used for storing the data. This can be a very important consideration depending on your down stream use case. --origionalChunkSize specifies the starting chunk size for the highest resolution information and the application will move towards and eventually settle on --finalChunkSize for the lowest resolution information. By default --origionalChunkSize are (1,1,1,1024,1024) and --finalChunkSize are (1,1,16,256,256). Chunks must always be represented as 5-axis (t,c,z,y,x)
+Here we specify the chunk size to be used for storing the data. This can be a very important consideration depending on your down stream use case. --origionalChunkSize specifies the starting chunk size for the highest resolution information and with each scale, the application will converge towards --finalChunkSize as it approaches the lowest resolution information. By default --origionalChunkSize are (1,1,1,1024,1024) and --finalChunkSize are (1,1,64,64,64). Chunks must always be represented as 5-axis (t,c,z,y,x)
 
--- Although a matter of opinion, the author believes that the default chunks sizes for 16 bit data offers acceptable trade-offs. Chunks are 2MB before compression which represents a good trade off between disk access and file transfer size over the internet. The anisotropic nature of the chunks offers a compromise between efficient 3D rendering at low resolutions and limits data access to the highest resolution data for single plane access.  *Users should optimize chunk sizes individual use case.*
+-- In the the author's opinion, the default chunks sizes represent a good trade off between disk access and file transfer size over the internet. The anisotropic nature of chunks at high-resolution before converging on isotropic chunks at low resolution offers a compromise between efficient 3D rendering at low resolutions and focused access to the highest-resolution for computation.  *Users should optimize chunk sizes individual use case.*
 
 
 
@@ -104,7 +104,7 @@ Here we specify the chunk size to be used for storing the data. This can be a ve
 # some nifti are supported, but it is experimental
 ```
 
-Here we specific the file extension for the files. 
+Here we specify the file extension for the images files that will be converted to ome-zarr.
 
 
 
@@ -222,7 +222,7 @@ The method used to calculate multiscale images can be specified using the --down
 
 Verify write:
 
-An option to verify that each chunk written to disk is correct be chosen.  This will double the I/O during conversion and can significantly slow down the process.  Any writes identified to be incorrect are automatically retried.
+An option to verify that each chunk written to disk is correct can be chosen.  This will double the I/O during conversion and can significantly slow down the process.  Any writes identified to be incorrect are automatically retried.
 
 ```bash
 --verify_zarr_write
