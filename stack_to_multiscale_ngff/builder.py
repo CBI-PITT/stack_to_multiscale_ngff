@@ -69,7 +69,7 @@ if __name__ == '__main__':
     mem = args.mem[0]
     verbose = args.verbose
     tmp_dir = args.tmpLocation
-    tmp_dir = tmp_dir if tmp_dir != [] else os.path.join(os.getcwd(),'tmp_dask')
+    tmp_dir = tmp_dir if tmp_dir != '' else os.path.join(os.getcwd(),'tmp_dask')
     fileType = args.fileType[0]
     scale = args.scale
     verify_zarr_write = args.verify_zarr_write
