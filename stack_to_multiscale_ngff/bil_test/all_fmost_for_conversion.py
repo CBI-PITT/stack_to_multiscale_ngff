@@ -588,6 +588,10 @@ datasets = {
         },
         'scale': (1, 0.23, 0.23),
         ## Scale is not recorded for this dataset, but this scale is used for other datasets in this series
+        'label': {
+            1: 'GFP',
+            2: 'PI',
+        },
     },
 
     'mouseID_360835-18049': {
