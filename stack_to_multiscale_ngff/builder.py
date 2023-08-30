@@ -223,7 +223,7 @@ if __name__ == '__main__':
 
                 def move_file(source, dest, create_dirs=True):
                     if create_dirs:
-                        os.makedirs(os.path.split(source)[0], exist_ok=True)
+                        os.makedirs(os.path.split(dest)[0], exist_ok=True)
                     print(f'Moving {source} to {dest}')
                     shutil.move(source,dest)
 
