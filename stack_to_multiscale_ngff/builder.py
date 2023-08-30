@@ -216,8 +216,6 @@ if __name__ == '__main__':
                 #     shutil.move(source, dest)
 
                 to_move = []
-                move = shutil.move
-                append = to_move.append
                 source_files = glob.glob(f'{mr.out_location}/**', recursive=True)
                 destination_files = [x.replace(mr.out_location,mr.finalLocation) for x in source_files]
 
@@ -226,13 +224,14 @@ if __name__ == '__main__':
                         os.makedirs(os.path.split(dest)[0], exist_ok=True)
                     print(f'Moving {source} to {dest}')
                     shutil.move(source,dest)
+                    return True
 
                 for source, dest in zip(source_files, destination_files):
                     print(f'Delaying {source} move')
                     tmp = delayed(move_file)(source, dest,create_dirs=True)
-                    append(tmp)
+                    to_move.append(tmp)
                 print(f'Moving {mr.out_location} to {mr.finalLocation}')
-                dask.compute(tmp)
+                complete = dask.compute(tmp)
 
 
             #Cleanup
