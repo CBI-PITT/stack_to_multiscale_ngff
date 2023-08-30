@@ -218,6 +218,8 @@ if __name__ == '__main__':
                 to_move = []
                 move = shutil.move
                 append = to_move.append
+                source_files = glob.glob(f'{mr.out_location}/**', recursive=True)
+                destination_files = [x.replace(mr.out_location,mr.finalLocation) for x in source_files]
                 for source, dest in zip(source_files, destination_files):
                     print(f'Delaying {source} move')
                     tmp = delayed(move)(source, dest)
