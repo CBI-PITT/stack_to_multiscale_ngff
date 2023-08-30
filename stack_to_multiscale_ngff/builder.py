@@ -218,17 +218,14 @@ if __name__ == '__main__':
                 to_move = []
                 append = to_move.append
                 source_files = glob.glob(f'{mr.out_location}/**', recursive=True)
+                source_files = [x for x in source_files if os.path.isfile(x)] # Keep only files
                 destination_files = [x.replace(mr.out_location,mr.finalLocation) for x in source_files]
 
                 def move_file(source, dest, create_dirs=True):
                     if create_dirs:
                         os.makedirs(os.path.split(dest)[0], exist_ok=True)
-
-                    if os.path.exists(dest):
-                        pass
-                    else:
-                        print(f'Moving {source} to {dest}')
-                        shutil.move(source,dest)
+                    print(f'Moving {source} to {dest}')
+                    shutil.move(source,dest)
                     return True
 
                 # Parallel Move of files from tmp to proper output directory
