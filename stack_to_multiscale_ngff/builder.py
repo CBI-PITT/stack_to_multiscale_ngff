@@ -231,7 +231,7 @@ if __name__ == '__main__':
                     tmp = delayed(move_file)(source, dest,create_dirs=True)
                     to_move.append(tmp)
                 print(f'Moving {mr.out_location} to {mr.finalLocation}')
-                complete = dask.compute(tmp)
+                complete = dask.compute(to_move)
 
 
             #Cleanup
