@@ -222,7 +222,7 @@ if __name__ == '__main__':
                     print(f'Delaying {source} move')
                     tmp = delayed(move)(source, dest)
                     append(tmp)
-                print(print(f'Moving {mr.out_location} to {mr.finalLocation}))
+                print(f'Moving {mr.out_location} to {mr.finalLocation}')
                 dask.compute(tmp)
 
 

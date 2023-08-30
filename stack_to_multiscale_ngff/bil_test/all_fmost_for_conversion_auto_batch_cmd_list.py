@@ -14,7 +14,7 @@ mem = 2900
 cpu = 80
 tmp = '/local'
 compression = 'zstd'
-clevel = 8
+clevel = 9
 file_type = 'tif'
 downSampleType = 'mean'
 
@@ -77,7 +77,8 @@ for key,value in datasets.items():
             break
 
     # Output path
-    output = get_output_path(http, output_base)
+    ch_path =value.get('channel').get(1)
+    output = get_output_path(ch_path, output_base)
     line = f'{line}{output}{output_zarr_ext} '
 
 
@@ -132,8 +133,9 @@ with open(outFileName,'w') as f:
 
 
 #test
-/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /bil/users/awatson/fmost_conv/df/75/df75626840c76c15/mouseID_362188-191815.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 8  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/amw_fmost_conv/mouseID_404421-182720
+/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /bil/users/awatson/fmost_conv/2b/da/2bdaf9e66a246844/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 9  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720
 
 
+/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /local/fmost_conv/2b/da/2bdaf9e66a246844/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 9  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720
 ##
-/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python -i /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /bil/users/awatson/fmost_conv/df/75/df75626840c76c15/mouseID_362188-191815.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 8  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/amw_fmost_conv/mouseID_404421-182720 --stop
+/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python -i /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py
