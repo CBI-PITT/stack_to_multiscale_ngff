@@ -61,6 +61,7 @@ switch = [
     (['-sk', '--skip'], False,'store_true','skip resolution level if it already exist'),
     (['-st','--stopBuild'], True,'store_false','Immediately stop building multiscale NGFF after initializing builder class- only used for development purposes'),
     (['-df','--directToFinalChunks'], False,'store_true','Use final chunks for all multiscales except full resolution'),
+    (['-bt','--buildTmpCopyDestination'], False,'store_true','Use final chunks for all multiscales except full resolution'),
 
     # Compression opts
     # Force users to choose --lossy for this to be used, otherwise default to lossless

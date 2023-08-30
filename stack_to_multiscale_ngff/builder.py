@@ -7,6 +7,7 @@ Created on Fri Oct 29 09:46:38 2021
 
 import os, glob, time, sys, shutil
 import dask
+from dask.delayed import delayed
 
 import numcodecs
 import zarr.storage
@@ -74,6 +75,7 @@ if __name__ == '__main__':
     scale = args.scale
     verify_zarr_write = args.verify_zarr_write
     skip = args.skip
+    buildTmpCopyDestination = args.buildTmpCopyDestination
     downSampleType = args.downSampleType[0]
     assert downSampleType in ['mean','max'], 'Only local mean and local max downsampling is available'
 
@@ -165,7 +167,8 @@ if __name__ == '__main__':
             cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
             zarr_store_type=zarr_store_type,
             verify_zarr_write=verify_zarr_write, omero_dict=omero,
-                 skip=skip, downSampType=downSampleType, directToFinalChunks=args.directToFinalChunks)
+                 skip=skip, downSampType=downSampleType, directToFinalChunks=args.directToFinalChunks,
+                 buildTmpCopyDestination=buildTmpCopyDestination)
 
     if args.stopBuild:
         try:
@@ -194,7 +197,35 @@ if __name__ == '__main__':
                 for r in reversed(list(range(len(mr.pyramidMap)))):
                     mr.get_store(r).consolidate()
 
+
+
         finally:
+
+            # Move data from tmp if zarr was built in tmp
+            if mr.buildTmpCopyDestination:
+                # source = mr.out_location
+                # destination = mr.finalLocation
+                # print(f'Moving data from {source} to {destination})
+                # shutil.move(source, destination)
+                # print('Move complete')
+
+                # source_files = glob.glob(f'{mr.out_location}/**', recursive=True)
+                # destination_files = [x.replace(mr.out_location,mr.finalLocation) for x in source_files]
+                # for source, dest in zip(source_files,destination_files):
+                #     print(f'Moving {source} to {dest})
+                #     shutil.move(source, dest)
+
+                to_move = []
+                move = shutil.move
+                append = to_move.append
+                for source, dest in zip(source_files, destination_files):
+                    print(f'Delaying {source} move')
+                    tmp = delayed(move)(source, dest)
+                    append(tmp)
+                print(print(f'Moving {mr.out_location} to {mr.finalLocation}))
+                dask.compute(tmp)
+
+
             #Cleanup
             countKeyboardInterrupt = 0
             countException = 0

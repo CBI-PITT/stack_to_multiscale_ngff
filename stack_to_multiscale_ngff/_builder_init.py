@@ -46,7 +46,8 @@ class builder(_builder_downsample,
             verify_zarr_write=False, omero_dict={},
             skip=False,
             downSampType='mean',
-            directToFinalChunks=False
+            directToFinalChunks=False,
+            buildTmpCopyDestination=False
             ):
                 
         self.in_location = in_location
@@ -70,6 +71,13 @@ class builder(_builder_downsample,
         self.skip = skip
         self.downSampType = downSampType
         self.directToFinalChunks = directToFinalChunks
+        self.buildTmpCopyDestination = buildTmpCopyDestination
+
+        # Hack to build zarr in tmp location then copy to finalLocation (finalLocation is the original out_location)
+        self.finalLocation = self.out_location
+        if self.buildTmpCopyDestination:
+            # Change out_location to tmp location so that build happens here.
+            self.out_location = os.path.join(self.tmp_dir,'build_location',os.path.split(self.out_location)[-1])
         
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 8 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
         self.res_chunk_limit_GB = self.mem / self.cpu_cores / 24 #Fudge factor for maximizing data being processed with available memory during downsample phase
