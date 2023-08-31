@@ -47,7 +47,8 @@ class builder(_builder_downsample,
             skip=False,
             downSampType='mean',
             directToFinalChunks=False,
-            buildTmpCopyDestination=False
+            buildTmpCopyDestination=False,
+            multi_scale_compressor=None
             ):
                 
         self.in_location = in_location
@@ -79,6 +80,12 @@ class builder(_builder_downsample,
             # Change out_location to tmp location so that build happens here.
             self.out_location = os.path.join(self.tmp_dir,'build_location',os.path.split(self.out_location)[-1])
         
+        # Option to have a different compressor for multiscales defaults to self.compressor
+        if multi_scale_compressor is None:
+            self.multi_scale_compressor = self.compressor
+        else:
+            self.multi_scale_compressor = multi_scale_compressor
+
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 8 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
         self.res_chunk_limit_GB = self.mem / self.cpu_cores / 24 #Fudge factor for maximizing data being processed with available memory during downsample phase
         

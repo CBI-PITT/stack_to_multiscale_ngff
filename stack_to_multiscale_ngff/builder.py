@@ -70,7 +70,7 @@ if __name__ == '__main__':
     mem = args.mem[0]
     verbose = args.verbose
     tmp_dir = args.tmpLocation
-    tmp_dir = tmp_dir if tmp_dir != [] else os.path.join(os.getcwd(),'tmp_dask')
+    tmp_dir = tmp_dir[0] if tmp_dir is not None else os.path.join(os.getcwd(),'tmp_dask')
     fileType = args.fileType[0]
     scale = args.scale
     verify_zarr_write = args.verify_zarr_write
@@ -154,6 +154,20 @@ if __name__ == '__main__':
         else:
             compressor = Jpegxl(lossless=True)
 
+    multi_scale_compressor = None
+    if args.compressionms[0].lower() == '':
+        multi_scale_compressor = compressor
+    elif args.compressionms[0].lower() == 'zstd':
+        assert args.clevelms[0] >= 0 and args.clevelms[0] <= 9, 'Compression Level must be between 0-9 for zstd'
+        multi_scale_compressor = Blosc(cname='zstd', clevel=args.clevelms[0], shuffle=Blosc.BITSHUFFLE)
+    elif args.compressionms[0].lower() == 'jpegxl':
+        if args.lossyms:
+            assert args.clevelms[0] >= 50 and args.clevelms[0] <= 100, 'Compression Level must be between 50-100 for lossy jpegxl'
+            multi_scale_compressor = Jpegxl(level=args.clevelms[0], lossless=False)
+        else:
+            multi_scale_compressor = Jpegxl(lossless=True)
+
+
     if out_location.lower().endswith('.ome.zarr'):
         zarr_store_type = zarr.storage.NestedDirectoryStore
     elif out_location.lower().endswith('.omehans'):
@@ -168,9 +182,10 @@ if __name__ == '__main__':
             zarr_store_type=zarr_store_type,
             verify_zarr_write=verify_zarr_write, omero_dict=omero,
                  skip=skip, downSampType=downSampleType, directToFinalChunks=args.directToFinalChunks,
-                 buildTmpCopyDestination=buildTmpCopyDestination)
+                 buildTmpCopyDestination=buildTmpCopyDestination,
+                 multi_scale_compressor=multi_scale_compressor)
 
-    if args.stopBuild:
+    if not args.stopBuild:
         try:
             with dask.config.set({'temporary_directory': mr.tmp_dir, #<<-Chance dask working directory
                                   'logging.distributed': 'error'}):  #<<-Disable WARNING messages that are often not helpful (remove for debugging)
@@ -217,7 +232,8 @@ if __name__ == '__main__':
 
                 to_move = []
                 append = to_move.append
-                source_files = glob.glob(f'{mr.out_location}/**', recursive=True)
+                source_files = glob.glob(f'{mr.out_location}/**/*.*', recursive=True)
+                source_files += glob.glob(f'{mr.out_location}/**/.*', recursive=True) # get '.' files (.zarray, etc)
                 source_files = [x for x in source_files if os.path.isfile(x)] # Keep only files
                 destination_files = [x.replace(mr.out_location,mr.finalLocation) for x in source_files]
 
@@ -280,7 +296,7 @@ if __name__ == '__main__':
             stop = time.time()
             print((stop - start)/60/60)
         
-        sys.exit(0)
+    sys.exit(0)
     
 ## https://download.brainimagelibrary.org/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
 ## /bil/data/2b/da/2bdaf9e66a246844/mouseID_405429-182725/
