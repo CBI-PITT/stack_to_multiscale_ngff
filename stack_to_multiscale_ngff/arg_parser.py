@@ -54,7 +54,7 @@ optional = [
     (['-win','--windowLabels'],int,'*','WIN',[],'store','START END MIN MAX defining the LUT representation of each channel'),
     (['-n','--name'],str,1,'NAM',[],'store','Name of the dataset'),
     (['-z','--defaultZ'],int,1,'dfZ',[],'store','Default Z-Layer to be displayed during visualization'),
-    (['-dst','--downSampleType'],str,1,'DSM',['mean'],'store','Down sample method. Options are mean and max (default: mean')
+    (['-dst','--downSampleType'],str,1,'DSM',['mean'],'store','Down sample method. Options are mean and max (default: mean'),
 
     ]
 
@@ -71,6 +71,9 @@ switch = [
     (['-los', '--lossy'], False,'store_true','Use lossy compression, this only matters if using jpegxl and it MUST be selected for lossy compression to be enabled'),
     (['-losms', '--lossyms'], False,'store_true','Use lossy compression for multiscales, this only matters if using jpegxl and it MUST be selected for lossy compression to be enabled'),
     #(['-lms', '--lossyMultiscale'], False,'store_true','Use lossy compression, only for multiscale data'),
+
+    # Features relevant for zarr_stores (https://github.com/CBI-PITT/zarr_stores)
+    (['-wdo', '--writeDirectOff'], False,'store_true','If selected, sharded stores from the zarr_stores package will write data as a NestedDirectoryStore before consolodating to sharded after completion'),
     ]
 
 for var,v_type,nargs,v_help in positional:

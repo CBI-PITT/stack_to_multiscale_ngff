@@ -41,7 +41,7 @@ class builder(_builder_downsample,
             geometry=(1,1,1),origionalChunkSize=(1,1,1,1024,1024),finalChunkSize=(1,1,64,64,64),
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
             compressor=Blosc(cname='zstd', clevel=5, shuffle=Blosc.SHUFFLE),
-            zarr_store_type=zarr.storage.NestedDirectoryStore, tmp_dir='/local',
+            zarr_store_type=zarr.storage.NestedDirectoryStore, writeDirect=True, tmp_dir='/local',
             verbose=False, performance_report=False, progress=False,
             verify_zarr_write=False, omero_dict={},
             skip=False,
@@ -63,6 +63,7 @@ class builder(_builder_downsample,
         self.mem = mem
         self.compressor = compressor
         self.zarr_store_type = zarr_store_type
+        self.writeDirect = writeDirect
         self.tmp_dir = tmp_dir
         self.verbose = verbose
         self.performance_report = performance_report

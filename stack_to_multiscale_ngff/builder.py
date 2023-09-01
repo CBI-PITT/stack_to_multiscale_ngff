@@ -77,6 +77,7 @@ if __name__ == '__main__':
     skip = args.skip
     buildTmpCopyDestination = args.buildTmpCopyDestination
     downSampleType = args.downSampleType[0]
+    writeDirect = False if args.writeDirectOff else True
     assert downSampleType in ['mean','max'], 'Only local mean and local max downsampling is available'
 
     ## Below will enable inputs for information included in .zattrs omero metadata
@@ -179,7 +180,7 @@ if __name__ == '__main__':
     mr = builder(in_location, out_location, fileType=fileType,
             geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
             cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
-            zarr_store_type=zarr_store_type,
+            zarr_store_type=zarr_store_type, writeDirect=writeDirect,
             verify_zarr_write=verify_zarr_write, omero_dict=omero,
                  skip=skip, downSampType=downSampleType, directToFinalChunks=args.directToFinalChunks,
                  buildTmpCopyDestination=buildTmpCopyDestination,
@@ -208,7 +209,7 @@ if __name__ == '__main__':
 
                 mr.write_resolution_series()
 
-            if mr.zarr_store_type == Archived_Nested_Store or mr.zarr_store_type == H5_Nested_Store:
+            if not writeDirect and (mr.zarr_store_type == Archived_Nested_Store or mr.zarr_store_type == H5_Nested_Store):
                 for r in reversed(list(range(len(mr.pyramidMap)))):
                     mr.get_store(r).consolidate()
 

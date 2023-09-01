@@ -40,10 +40,10 @@ class _builder_utils:
             if self.zarr_store_type == H5_Nested_Store:
                 # print(f'MODE MODE MODE = {mode}')
                 if mode == 'r':
-                    store = self.zarr_store_type(path, write_direct=True, swmr=True, container_ext='h5',
+                    store = self.zarr_store_type(path, write_direct=self.writeDirect, swmr=True, container_ext='h5',
                                                  distribuited_lock=True, auto_verify_write=False, mode='r')
                 else:
-                    store = self.zarr_store_type(path, write_direct=True, swmr=True, container_ext='h5',
+                    store = self.zarr_store_type(path, write_direct=self.writeDirect, swmr=True, container_ext='h5',
                                                  distribuited_lock=True, auto_verify_write=False)
             # elif self.zarr_store_type == H5_Shard_Store:
             #     store = self.zarr_store_type(path,verbose=self.verbose,alternative_lock_file_path=self.tmp_dir)
