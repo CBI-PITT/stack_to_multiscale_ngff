@@ -12,9 +12,12 @@ output_zarr_ext = '.omehans'
 
 mem = 2900
 cpu = 80
-tmp = '/local'
+tmp = '/scratch/fmost_conv'
 compression = 'zstd'
 clevel = 9
+compression_multiscales = 'jpegxl'
+clevel_multiscales = 100
+
 file_type = 'tif'
 downSampleType = 'mean'
 
@@ -114,12 +117,21 @@ for key,value in datasets.items():
     line = f'{line} --compression {compression} '
     line = f'{line} --clevel {clevel} '
     line = f'{line} --downSampleType {downSampleType} '
-    line = f'{line} --verify_zarr_write '
+    # line = f'{line} --verify_zarr_write '
 
     # helper options
     line = f'{line} -mem {mem} '
     line = f'{line} -cpu {cpu} '
-    line = f'{line} -tmp {tmp}/{key}'
+    line = f'{line} -tmp {tmp}/{key} '
+
+    line = f'{line} --buildTmpCopyDestination '
+
+    # Setup alternative compression for multiscales, if selected
+    if compression_multiscales is not None:
+        line = f'{line} --compressionms {compression_multiscales} '
+        line = f'{line} --clevelms {clevel_multiscales} '
+        if compression_multiscales == 'jepgxl' and clevel_multiscales <= 100:
+            line = f'{line} --lossyms '
 
 
     
@@ -136,6 +148,13 @@ with open(outFileName,'w') as f:
 /bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /bil/users/awatson/fmost_conv/2b/da/2bdaf9e66a246844/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 9  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720
 
 
-/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /local/fmost_conv/2b/da/2bdaf9e66a246844/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 9  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720
+/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /local/fmost_conv/2b/da/2bdaf9e66a246844/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 9  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720 --buildTmpCopyDestination
+
+
+/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /bil/users/awatson/TEST_CONV_TEMP/build_tmp_c5/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 5  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720 --buildTmpCopyDestination
+
 ##
 /bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python -i /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py
+
+## CBI_Test
+~/anaconda3/envs/multiscale_develop/bin/python -i /CBI_FastStore/cbiPythonTools/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /CBI_Hive/globus/pitt/bil/game_science/BILSample/0 /CBI_Hive/globus/pitt/bil/game_science/TEST_OUT.omehans  -s 1 1 0.28 0.114 0.114  --colors  green  --channelLabels  c1  --name test_alt_ms_compressor -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 5  --downSampleType mean  -tmp /CBI_FastStore/TEST_OME_ZARR_CONVERT/TEST_TEST --buildTmpCopyDestination --compressionms jpegxl  --clevelms 100 --lossyms

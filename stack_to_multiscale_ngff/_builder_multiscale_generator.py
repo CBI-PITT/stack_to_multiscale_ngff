@@ -478,23 +478,23 @@ class _builder_multiscale_generator:
             else:
                 previous_chunks = current_chunks
 
-            # if z < image_shape[0]:
-            #     z = z + starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
+            if z < image_shape[0]:
+                z = z + starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
             # elif y < image_shape[1]:
             #     y = y + starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
             # elif x < image_shape[2]:
             #     x = x + starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
-            # else:
-            #     break
-
-            if x < image_shape[2]:
-                x = x + starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
-            elif y < image_shape[1]:
-                y = y + starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
-            elif z < image_shape[0]:
-                z = z + starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
             else:
                 break
+
+            # if x < image_shape[2]:
+            #     x = x + starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
+            # elif y < image_shape[1]:
+            #     y = y + starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
+            # elif z < image_shape[0]:
+            #     z = z + starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
+            # else:
+            #     break
 
             current_chunks = (z,y,x)
 
