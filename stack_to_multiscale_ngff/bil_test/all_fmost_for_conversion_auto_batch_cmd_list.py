@@ -1,35 +1,55 @@
-#/bil/data/df/75/df75626840c76c15/mouseID_210254-15257/Green/Origin /bil/data/df/75/df75626840c76c15/mouseID_210254-15257/Red/Origin /bil/users/awatson/conv/mouseID_210254-15257 -mem 2900 -cpu 80 -tmp /local --clevel 8
-#-s 1 1 50 1 1 -oc 1 1 1 1024 1024 -fc 1 1 64 64 64
+# salloc --ntasks=1 --mem 2900G --cpus-per-task 80
+
+'''
+Built complete cmds for conversion of fMOST datasets
+
+Output path will be output_base + UUID + next_path
+'''
+
+##########################################
+# At minimum, edit the following objects #
+##########################################
+
+python_env_bin = '/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python'
+stack_to_multiscale_builder_script_location = '/bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py'
+
+## Path to place the output file with all cmds for dataset conversions
+outPath = '/CBI_FastStore/cbiPythonTools/stack_to_multiscale_ngff/stack_to_multiscale_ngff/bil_test'
+output_base = '/bil/users/awatson/fmost_conv' # Base location where all finalized datasets will be stored
+
+mem = 2900 #GB of RAM on SLURM allocation
+cpu = 80 # Number of logical processors on SLURM allocation
+tmp = '/scratch/awatson/fmost_conv' # Ideally NVME scratch
 
 
-import os
+############################
+# End of essential edits ###
+############################
 
-''' Output path will be output_base + UUID + next_path'''
+## Python dict of all fMOST datasets
+from all_fmost_for_conversion import datasets
+print(len(datasets))
 
-output_base = '/bil/users/awatson/fmost_conv'
+output_zarr_ext = '.omehans' ## options= '.omehans', '.ome.zarr'
 
-output_zarr_ext = '.omehans'
+buildTmpCopyDestination = True # Build the data in the temp location (ideally nvme scratch) then copy to the output location
 
-mem = 2900
-cpu = 80
-tmp = '/scratch/fmost_conv'
-compression = 'zstd'
-clevel = 9
-compression_multiscales = 'jpegxl'
+compression = 'zstd'  # Options = 'zstd', 'jpegxl'
+clevel = 5
+
+compression_multiscales = None # Different compression for multiscales
 clevel_multiscales = 100
 
-file_type = 'tif'
-downSampleType = 'mean'
+file_type = 'tif' # File extension ('tif', 'tiff', 'jp2')
+downSampleType = 'mean' # 'mean', 'max'
 
-start_chunks = '1 1 1 1024 1024'
-stop_chunks =  '1 1 64 64 64'
+start_chunks = '1 1 1 1024 1024' # (1,1,z,y,x)
+stop_chunks =  '1 1 64 64 64' # (1,1,z,y,x)
 
 
-# http = 'https://download.brainimagelibrary.org/df/75/df75626840c76c15/mouseID_362188-191815/CH2'
-#
-# key ='mouseID_362188-191815'
-# value =datasets.get('mouseID_362188-191815')
+### START OF MAIN SCRIPT ###
 
+import os
 
 def http_to_path(http):
     return http.replace('https://download.brainimagelibrary.org','/bil/data')
@@ -60,6 +80,9 @@ def get_uuid_and_next_path(http):
 
 
 def get_output_path(http, output_base):
+    '''
+    Build an output path that mirrors the input /bil/data/ structure
+    '''
     uuid, datasetID = get_uuid_and_next_path(http)
     path = f'{output_base}/{uuid[:2]}/{uuid[2:4]}/{uuid}/{datasetID}'
     return path
@@ -67,7 +90,7 @@ def get_output_path(http, output_base):
 lines = []
 for key,value in datasets.items():
     
-    line = ''
+    line = f'{python_env_bin} {stack_to_multiscale_builder_script_location} '
 
     # Inputs
     idx = 1
@@ -105,7 +128,7 @@ for key,value in datasets.items():
         if label is not None:
             line = f'{line} {label} '
         else:
-            line = f'{line} Channel{idx+1} '
+            line = f'{line} Channel{idx} '
 
     # Name of dataset
     line = f'{line} --name {key} '
@@ -117,13 +140,16 @@ for key,value in datasets.items():
     line = f'{line} --compression {compression} '
     line = f'{line} --clevel {clevel} '
     line = f'{line} --downSampleType {downSampleType} '
-    # line = f'{line} --verify_zarr_write '
+    line = f'{line} --verify_zarr_write '
 
-    # helper options
+    # slurm helper options
     line = f'{line} -mem {mem} '
     line = f'{line} -cpu {cpu} '
+    
+    # Temporary directory location
     line = f'{line} -tmp {tmp}/{key} '
-
+    
+    # Build the data in the temp location (ideally nvme scratch) then copy to the output location
     line = f'{line} --buildTmpCopyDestination '
 
     # Setup alternative compression for multiscales, if selected
@@ -137,24 +163,24 @@ for key,value in datasets.items():
     
     lines.append(line)
 
-
+print(len(lines))
 outFileName = os.path.join(outPath,'lines_to_process.txt')
 
 with open(outFileName,'w') as f:
-    f.writelines(lines)
+    f.writelines(l + '\n' for l in lines)
 
 
-#test
-/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /bil/users/awatson/fmost_conv/2b/da/2bdaf9e66a246844/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 9  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720
+# #test
+# /bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /bil/users/awatson/fmost_conv/2b/da/2bdaf9e66a246844/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 9  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720
 
 
-/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /local/fmost_conv/2b/da/2bdaf9e66a246844/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 9  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720 --buildTmpCopyDestination
+# /bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /local/fmost_conv/2b/da/2bdaf9e66a246844/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 9  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720 --buildTmpCopyDestination
 
 
-/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /bil/users/awatson/TEST_CONV_TEMP/build_tmp_c5/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 5  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720 --buildTmpCopyDestination
+# /bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH1 /bil/data/2b/da/2bdaf9e66a246844/mouseID_404421-182720/CH2 /bil/users/awatson/TEST_CONV_TEMP/build_tmp_c5/mouseID_404421-182720.omehans  -s 1 1 1 0.23 0.23  --colors  green  red  --channelLabels  GFP  PI  --name mouseID_404421-182720  -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 5  --downSampleType mean  --verify_zarr_write  -mem 2900  -cpu 80  -tmp /local/mouseID_404421-182720 --buildTmpCopyDestination
 
-##
-/bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python -i /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py
+# ##
+# /bil/users/awatson/miniconda3/envs/stack_to_multiscale_ngff/bin/python -i /bil/users/awatson/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py
 
-## CBI_Test
-~/anaconda3/envs/multiscale_develop/bin/python -i /CBI_FastStore/cbiPythonTools/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /CBI_Hive/globus/pitt/bil/game_science/BILSample/0 /CBI_Hive/globus/pitt/bil/game_science/TEST_OUT.omehans  -s 1 1 0.28 0.114 0.114  --colors  green  --channelLabels  c1  --name test_alt_ms_compressor -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 5  --downSampleType mean  -tmp /CBI_FastStore/TEST_OME_ZARR_CONVERT/TEST_TEST --buildTmpCopyDestination --compressionms jpegxl  --clevelms 100 --lossyms
+# ## CBI_Test
+# ~/anaconda3/envs/multiscale_develop/bin/python -i /CBI_FastStore/cbiPythonTools/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py /CBI_Hive/globus/pitt/bil/game_science/BILSample/0 /CBI_Hive/globus/pitt/bil/game_science/TEST_OUT.omehans  -s 1 1 0.28 0.114 0.114  --colors  green  --channelLabels  c1  --name test_alt_ms_compressor -oc 1 1 1 1024 1024  -fc 1 1 64 64 64  -ft tif  --compression zstd  --clevel 5  --downSampleType mean  -tmp /CBI_FastStore/TEST_OME_ZARR_CONVERT/TEST_TEST --buildTmpCopyDestination --compressionms jpegxl  --clevelms 100 --lossyms
