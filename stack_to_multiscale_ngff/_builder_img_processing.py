@@ -132,11 +132,11 @@ class _builder_downsample:
                         ## probably because there are adjacent values in the array that unpredictatbly alter
                         ## the outcome of the lossy compression.  The below method is also wasteful of CPU cycle, requiring
                         ## compression to be done 2x.
-                        # if np.ndarray.all(to_compare == zarray[trimmed_slice]):
-                        #     correct = True
-                        # else:
-                        #     print('NOT CORRECT')
-                        # # print('comparing lossy')
+
+                        #########################################################################################
+                        # Very computationally intense: To verify lossy compressed data is written correctly, we
+                        # need to recompress the data by writing it to the exact shape zarr array in RAM then
+                        # reread the data to verify against the data on disk.
                         working_zarray = zarr.zeros(zarray.shape,chunks=zarray.chunks,dtype=zarray.dtype, compressor=zarray.compressor)
                         working_zarray[trimmed_slice] = working
                         correct = np.ndarray.all(

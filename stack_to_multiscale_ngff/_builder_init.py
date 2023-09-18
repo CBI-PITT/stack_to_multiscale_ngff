@@ -41,12 +41,14 @@ class builder(_builder_downsample,
             geometry=(1,1,1),origionalChunkSize=(1,1,1,1024,1024),finalChunkSize=(1,1,64,64,64),
             cpu_cores=os.cpu_count(), sim_jobs=4, mem=int((psutil.virtual_memory().free/1024**3)*.8),
             compressor=Blosc(cname='zstd', clevel=5, shuffle=Blosc.SHUFFLE),
-            zarr_store_type=zarr.storage.NestedDirectoryStore, tmp_dir='/local',
+            zarr_store_type=zarr.storage.NestedDirectoryStore, writeDirect=True, tmp_dir='/local',
             verbose=False, performance_report=False, progress=False,
             verify_zarr_write=False, omero_dict={},
             skip=False,
             downSampType='mean',
-            directToFinalChunks=False
+            directToFinalChunks=False,
+            buildTmpCopyDestination=False,
+            multi_scale_compressor=None
             ):
                 
         self.in_location = in_location
@@ -61,6 +63,7 @@ class builder(_builder_downsample,
         self.mem = mem
         self.compressor = compressor
         self.zarr_store_type = zarr_store_type
+        self.writeDirect = writeDirect
         self.tmp_dir = tmp_dir
         self.verbose = verbose
         self.performance_report = performance_report
@@ -70,7 +73,20 @@ class builder(_builder_downsample,
         self.skip = skip
         self.downSampType = downSampType
         self.directToFinalChunks = directToFinalChunks
+        self.buildTmpCopyDestination = buildTmpCopyDestination
+
+        # Hack to build zarr in tmp location then copy to finalLocation (finalLocation is the original out_location)
+        self.finalLocation = self.out_location
+        if self.buildTmpCopyDestination:
+            # Change out_location to tmp location so that build happens here.
+            self.out_location = os.path.join(self.tmp_dir,'build_location',os.path.split(self.out_location)[-1])
         
+        # Option to have a different compressor for multiscales defaults to self.compressor
+        if multi_scale_compressor is None:
+            self.multi_scale_compressor = self.compressor
+        else:
+            self.multi_scale_compressor = multi_scale_compressor
+
         self.res0_chunk_limit_GB = self.mem / self.cpu_cores / 8 #Fudge factor for maximizing data being processed with available memory during res0 conversion phase
         self.res_chunk_limit_GB = self.mem / self.cpu_cores / 24 #Fudge factor for maximizing data being processed with available memory during downsample phase
         

@@ -282,7 +282,7 @@ class _builder_multiscale_generator:
         
         
         
-        new_array = zarr.zeros(new_shape, chunks=new_chunks, store=new_array_store, overwrite=True, compressor=self.compressor,dtype=self.dtype)
+        new_array = zarr.zeros(new_shape, chunks=new_chunks, store=new_array_store, overwrite=True, compressor=self.multi_scale_compressor,dtype=self.dtype)
         print('new_array, {}, {}'.format(new_array.shape,new_array.chunks))
 
         # Other downsample methods could be substituted here
@@ -480,12 +480,21 @@ class _builder_multiscale_generator:
 
             if z < image_shape[0]:
                 z = z + starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
-            elif y < image_shape[1]:
-                y = y + starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
-            elif x < image_shape[2]:
-                x = x + starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
+            # elif y < image_shape[1]:
+            #     y = y + starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
+            # elif x < image_shape[2]:
+            #     x = x + starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
             else:
                 break
+
+            # if x < image_shape[2]:
+            #     x = x + starting_chunks[2] if starting_chunks[2] < image_shape[2] else image_shape[2]
+            # elif y < image_shape[1]:
+            #     y = y + starting_chunks[1] if starting_chunks[1] < image_shape[1] else image_shape[1]
+            # elif z < image_shape[0]:
+            #     z = z + starting_chunks[0] if starting_chunks[0] < image_shape[0] else image_shape[0]
+            # else:
+            #     break
 
             current_chunks = (z,y,x)
 
@@ -672,7 +681,7 @@ class _builder_multiscale_generator:
         print(new_chunks)
 
         new_array = zarr.zeros(new_shape, chunks=new_chunks, store=new_array_store, overwrite=True,
-                               compressor=self.compressor, dtype=self.dtype)
+                               compressor=self.multi_scale_compressor, dtype=self.dtype)
         print('new_array, {}, {}'.format(new_array.shape, new_array.chunks))
 
         from_array_shape_chunks = (

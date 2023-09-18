@@ -44,6 +44,9 @@ optional = [
     (['-cmp','--compression'],str,1,'CMP',['zstd'],'store','Compression method (zstd,jpegxl)'),
     (['-cl','--clevel'],int,1,'CMP',[5],'store','Compression level : Integer 0-9 zstd (default 5), 50-100 jpegxl'),
 
+    (['-cmpms','--compressionms'],str,1,'CMP',[''],'store','Compression method for multiscales only - defaults to --compression method'),
+    (['-clms','--clevelms'],int,1,'CMP',[5],'store','Compression level for multiscales - defaults to --clevel - not configurable if --compressionms is not specified'),
+
 
     # Optional arguments for OME-ZARR OMERO metadata
     (['-ch','--channelLabels'],str,'*','CH',[],'store','A label for each channel'),
@@ -51,7 +54,7 @@ optional = [
     (['-win','--windowLabels'],int,'*','WIN',[],'store','START END MIN MAX defining the LUT representation of each channel'),
     (['-n','--name'],str,1,'NAM',[],'store','Name of the dataset'),
     (['-z','--defaultZ'],int,1,'dfZ',[],'store','Default Z-Layer to be displayed during visualization'),
-    (['-dst','--downSampleType'],str,1,'DSM',['mean'],'store','Down sample method. Options are mean and max (default: mean')
+    (['-dst','--downSampleType'],str,1,'DSM',['mean'],'store','Down sample method. Options are mean and max (default: mean'),
 
     ]
 
@@ -59,13 +62,18 @@ switch = [
     (['-v', '--verbose'], 0,'count','Verbose output : additive more v = greater level of verbosity'),
     (['-vzw', '--verify_zarr_write'], False,'store_true','Immediately verify each chunk written to disk.'),
     (['-sk', '--skip'], False,'store_true','skip resolution level if it already exist'),
-    (['-st','--stopBuild'], True,'store_false','Immediately stop building multiscale NGFF after initializing builder class- only used for development purposes'),
+    (['-st','--stopBuild'], False,'store_true','Immediately stop building multiscale NGFF after initializing builder class- only used for development purposes'),
     (['-df','--directToFinalChunks'], False,'store_true','Use final chunks for all multiscales except full resolution'),
+    (['-bt','--buildTmpCopyDestination'], False,'store_true','Use final chunks for all multiscales except full resolution'),
 
     # Compression opts
     # Force users to choose --lossy for this to be used, otherwise default to lossless
     (['-los', '--lossy'], False,'store_true','Use lossy compression, this only matters if using jpegxl and it MUST be selected for lossy compression to be enabled'),
+    (['-losms', '--lossyms'], False,'store_true','Use lossy compression for multiscales, this only matters if using jpegxl and it MUST be selected for lossy compression to be enabled'),
     #(['-lms', '--lossyMultiscale'], False,'store_true','Use lossy compression, only for multiscale data'),
+
+    # Features relevant for zarr_stores (https://github.com/CBI-PITT/zarr_stores)
+    (['-wdo', '--writeDirectOff'], False,'store_true','If selected, sharded stores from the zarr_stores package will write data as a NestedDirectoryStore before consolodating to sharded after completion'),
     ]
 
 for var,v_type,nargs,v_help in positional:
