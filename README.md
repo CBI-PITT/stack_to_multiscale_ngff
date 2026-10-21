@@ -25,7 +25,7 @@ git clone https://github.com/CBI-PITT/stack_to_multiscale_ngff.git
 cd stack_to_multiscale_ngff
 
 # Create a virtual environment
-conda create -n stack_to_multiscale_ngff python=3.8 -y
+conda create -n stack_to_multiscale_ngff python=3.12 -y
 # Activate the virtual environment
 conda activate stack_to_multiscale_ngff
 
@@ -36,18 +36,20 @@ pip install -e .
 
 
 
-#### *The extension of the output location determines the type of zarr store that is used for conversion.  
+#### *The NGFF version of the output is selected with --zarrFormat (default 0.6).  
 
-###### 1)	'.ome.zarr' will utilize the [NestedDirectoryStore](https://zarr.readthedocs.io/en/stable/api/storage.html#zarr.storage.NestedDirectoryStore) (OME-NGFF) [standard](https://ngff.openmicroscopy.org/latest/#image-layout). 
+###### 1)	'--zarrFormat 0.6' (default) writes a sharded [zarr v3](https://zarr-specs.readthedocs.io/en/latest/v3/core/v3.0.html) output with [OME-NGFF 0.6](https://ngff.openmicroscopy.org/specifications/0.6/index.html) metadata.  Sharding greatly reduces the number of files created: each shard is one physical storage object containing many inner chunks.
 
-###### 2)	'.omehans' will utilize the [H5_Nested_Store](https://github.com/CBI-PITT/zarr_stores/blob/main/zarr_stores/h5_nested_store.py)
+###### 2)	'--zarrFormat 0.5' writes a sharded [zarr v3](https://zarr-specs.readthedocs.io/en/latest/v3/core/v3.0.html) output with [OME-NGFF 0.5](https://ngff.openmicroscopy.org/specifications/0.5/index.html) metadata.
+
+###### 3)	'--zarrFormat 0.4' writes a chunked [zarr v2](https://zarr-specs.readthedocs.io/en/latest/v2/v2.0.html) output with [OME-NGFF 0.4](https://ngff.openmicroscopy.org/specifications/0.4/index.html) metadata for maximum compatibility with older readers.
 
 
 
 Example:
 
 ```bash
-python ~/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py '/path/to/tiff/stack/channel1' '/path/to/tiff/stack/channel2' '/path/to/tiff/stack/channel3' '/path/to/output/multiscale.omehans' --scale 1 1 0.280 0.114 0.114 --origionalChunkSize 1 1 1 1024 1024 --finalChunkSize 1 1 64 64 64 --fileType tif
+python ~/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py '/path/to/tiff/stack/channel1' '/path/to/tiff/stack/channel2' '/path/to/tiff/stack/channel3' '/path/to/output/multiscale.ome.zarr' --scale 1 1 0.280 0.114 0.114 --origionalChunkSize 1 1 1 1024 1024 --finalChunkSize 1 1 64 64 64 --fileType tif
 ```
 
 
@@ -71,12 +73,10 @@ Next we pass the paths(s) to directories where a TIFF z-series is stored.  Each 
 
 
 ```bash
-'/path/to/output/multiscale.omehans'
-
-# '/path/to/output/multiscale.ome.zarr' # OME-NGFF standard
+'/path/to/output/multiscale.ome.zarr'
 ```
 
-Next we pass the output path.  The OME-Zarr will be stored in this path.  The default zarr storage structure is the zarr [NestedDirectoryStore](https://zarr.readthedocs.io/en/stable/api/storage.html#zarr.storage.NestedDirectoryStore) which is designated to conform with the [OME-NGFF standard](https://ngff.openmicroscopy.org/latest/#image-layout).  For compatibility purposes, we recommend appending the extension  '.ome.zarr' which signals to down-stream applications how to understand the data.  However, the extension 'omehans' can be used as an alternative which will store the data in a [H5_Nested_Store](https://github.com/CBI-PITT/zarr_stores/blob/main/zarr_stores/h5_nested_store.py) format which uses sharding along the z-dimension to substantially reduce the number of files created.
+Next we pass the output path.  The OME-Zarr will be stored in this path.  By default the output is a sharded zarr v3 store with OME-NGFF 0.6 metadata (see --zarrFormat).  For compatibility purposes, we recommend appending the extension  '.ome.zarr' which signals to down-stream applications how to understand the data.  Use '--zarrFormat 0.4' to write a chunked zarr v2 output with OME-NGFF 0.4 metadata instead (or '--zarrFormat 0.5' for sharded zarr v3 with OME-NGFF 0.5 metadata).  Writing is massively parallel and shard-safe: one dask task writes exactly one complete shard (or chunk for v2), so different workers always write different shards simultaneously and no locking is required.
 
 
 
@@ -113,39 +113,58 @@ Here we specify the file extension for the images files that will be converted t
 ```
 python ~/stack_to_multiscale_ngff/stack_to_multiscale_ngff/builder.py --help
 
-usage: builder.py [-h] [-oc O O O O O] [-fc F F F F F] [-cpu C] [-mem M] [-tmp TMP] [-ft FT] [-s S S S S S] [-cmp CMP] [-cl CMP] [-ch [CH [CH ...]]] [-clr [CLR [CLR ...]]]
-                  [-win [WIN [WIN ...]]] [-n NAM] [-z dfZ] [-dst DSM] [-v] [-vzw] [-sk] [-st] [-df] [-los]
+usage: builder.py [-h] [-oc O O O O O] [-fc F F F F F] [-sh SH SH SH SH SH]
+                  [-zf ZF] [-cpu C] [-mem M] [-tmp TMP] [-ft FT]
+                  [-s S S S S S] [-cmp CMP] [-cl CMP] [-cmpms CMP] [-clms CMP]
+                  [-ch [CH ...]] [-clr [CLR ...]] [-win [WIN ...]] [-n NAM]
+                  [-z dfZ] [-dst DSM] [-v] [-sk] [-st] [-df] [-bt] [-los]
+                  [-losms]
                   input [input ...] output
 
 Form a multiresolution chunked zarr-NGFF from a TIFF series.
 
 positional arguments:
-  input                 One or multiple input directores which contain tiff files to be converted.
+  input                 One or multiple input directores which contain tiff
+                        files to be converted.
   output                Output directory for multiresolution series.
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -oc O O O O O, --origionalChunkSize O O O O O
-                        The chunk size for the higest resolution scale0. Must be 5 integers for axes (TCZYX).
+                        The chunk size for the higest resolution scale0. Must
+                        be 5 integers for axes (TCZYX).
   -fc F F F F F, --finalChunkSize F F F F F
-                        The chunk size for the lowest resolution scaleX. Must be 5 integers for axes (TCZYX).
+                        The chunk size for the lowest resolution scaleX. Must
+                        be 5 integers for axes (TCZYX).
+  -sh SH SH SH SH SH, --shardShape SH SH SH SH SH
+                        Shard size for sharded zarr v3 output. Must be 5
+                        integers for axes (TCZYX). Each spatial dim must be a
+                        multiple of the largest chunk size for that axis.
+                        Default: 4x the largest chunk size along z, largest
+                        chunk along y/x.
+  -zf ZF, --zarrFormat ZF
+                        NGFF version of the output: 0.6 (default, sharded
+                        zarr v3), 0.5 (sharded zarr v3), or 0.4 (chunked,
+                        zarr v2).
   -cpu C                Number of cpus which are available
   -mem M                Available RAM in GB: default is 0.8x of free RAM
   -tmp TMP, --tmpLocation TMP
-                        Location for temp files --> high-speed local storage is suggested
+                        Location for temp files --> high-speed local storage
+                        is suggested
   -ft FT, --fileType FT
-                        File type for input --> Currently tif,tiff,jp2 and some nifti are supported
+                        File type for input --> Currently tif,tiff,jp2 and
+                        some nifti are supported
   -s S S S S S, --scale S S S S S
                         5-dim scale of the datasets (tczyx) in MICRONS
   -cmp CMP, --compression CMP
                         Compression method (zstd,jpegxl)
   -cl CMP, --clevel CMP
                         Compression level : Integer 0-9 zstd (default 5), 50-100 jpegxl
-  -ch [CH [CH ...]], --channelLabels [CH [CH ...]]
+  -ch [CH ...], --channelLabels [CH ...]
                         A label for each channel
-  -clr [CLR [CLR ...]], --colors [CLR [CLR ...]]
+  -clr [CLR ...], --colors [CLR ...]
                         Color for each channel: by default colors are repeatedly assigned as [green, red, purple, blue,...]
-  -win [WIN [WIN ...]], --windowLabels [WIN [WIN ...]]
+  -win [WIN ...], --windowLabels [WIN ...]
                         START END MIN MAX defining the LUT representation of each channel
   -n NAM, --name NAM    Name of the dataset
   -z dfZ, --defaultZ dfZ
@@ -153,8 +172,6 @@ optional arguments:
   -dst DSM, --downSampleType DSM
                         Down sample method. Options are mean and max (default: mean
   -v, --verbose         Verbose output : additive more v = greater level of verbosity
-  -vzw, --verify_zarr_write
-                        Immediately verify each chunk written to disk.
   -sk, --skip           skip resolution level if it already exist
   -st, --stopBuild      Immediately stop building multiscale NGFF after initializing builder class- only used for development purposes
   -df, --directToFinalChunks
@@ -220,30 +237,19 @@ The method used to calculate multiscale images can be specified using the --down
 
 
 
-Verify write:
-
-An option to verify that each chunk written to disk is correct can be chosen.  This will double the I/O during conversion and can significantly slow down the process.  Any writes identified to be incorrect are automatically retried.
-
-```bash
---verify_zarr_write
-# If a lossy compressor is used, this is ignored since data written to disk will not be the same as the origional.
-```
-
-
-
 Compression:
 
-The compression method and level can be chosen.  Currently [Blosc zstd](https://numcodecs.readthedocs.io/en/stable/blosc.html) and [jpegxl](https://github.com/cgohlke/imagecodecs/blob/master/imagecodecs/_jpegxl.pyx) are supported.
+The compression method and level can be chosen.  For sharded zarr v3 output (default), only [Blosc zstd](https://numcodecs.readthedocs.io/en/stable/blosc.html) is supported (JPEG XL is not available as a zarr v3 codec).  For zarr v2 output ('--zarrFormat 0.4'), [Blosc zstd](https://numcodecs.readthedocs.io/en/stable/blosc.html) and [jpegxl](https://github.com/cgohlke/imagecodecs/blob/master/imagecodecs/_jpegxl.pyx) are supported.
 
-Default (lossless): zstd, compression level 5, SHUFFLE filter
+Default (lossless): zstd, compression level 5, BITSHUFFLE filter
 
 ```bash
---compression 'ztd' --clevel 5 # (Default, options 0-9)
---compression 'jpegxl' # (lossless jpegxl)
+--compression 'zstd' --clevel 5 # (Default, options 0-9)
+--compression 'jpegxl' # (lossless jpegxl, zarr v2 output only)
 
 --compression # (No compression)
 
---compression 'jpegxl' --clevel 95 --lossy # (lossy jpegxl, 95 quality)
+--compression 'jpegxl' --clevel 95 --lossy # (lossy jpegxl, 95 quality, zarr v2 output only)
 # lossy compression MUST specify --lossy otherwise clevel is ignored and it defaults to lossless jpegxl)
 ```
 

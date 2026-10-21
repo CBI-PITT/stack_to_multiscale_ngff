@@ -34,6 +34,8 @@ optional = [
     
     (['-oc','--origionalChunkSize'],int,5,'O',(1,1,1,1024,1024),'store','The chunk size for the higest resolution scale0. Must be 5 integers for axes (TCZYX).'),
     (['-fc','--finalChunkSize'],int,5,'F',(1,1,16,256,256),'store','The chunk size for the lowest resolution scaleX. Must be 5 integers for axes (TCZYX).'),
+    (['-sh','--shardShape'],int,5,'SH',None,'store','Shard size for sharded zarr v3 output. Must be 5 integers for axes (TCZYX). Each spatial dim must be a multiple of the largest chunk size for that axis. Default: 4x the largest chunk size along z, largest chunk along y/x.'),
+    (['-zf','--zarrFormat'],float,1,'ZF',[0.6],'store','NGFF version of the output: 0.6 (default, sharded zarr v3), 0.5 (sharded zarr v3), or 0.4 (chunked zarr v2).'),
     (['-cpu'],int,1,'C',[os.cpu_count()],'store','Number of cpus which are available'),
     (['-mem'],int,1,'M',[int(psutil.virtual_memory().free/1024/1024/1024*0.8)],'store','Available RAM in GB: default is 0.8x of free RAM'),
     (['-tmp','--tmpLocation'],str,1,'TMP',None,'store','Location for temp files --> high-speed local storage is suggested'),
@@ -60,7 +62,6 @@ optional = [
 
 switch = [
     (['-v', '--verbose'], 0,'count','Verbose output : additive more v = greater level of verbosity'),
-    (['-vzw', '--verify_zarr_write'], False,'store_true','Immediately verify each chunk written to disk.'),
     (['-sk', '--skip'], False,'store_true','skip resolution level if it already exist'),
     (['-st','--stopBuild'], False,'store_true','Immediately stop building multiscale NGFF after initializing builder class- only used for development purposes'),
     (['-df','--directToFinalChunks'], False,'store_true','Use final chunks for all multiscales except full resolution'),
@@ -71,9 +72,6 @@ switch = [
     (['-los', '--lossy'], False,'store_true','Use lossy compression, this only matters if using jpegxl and it MUST be selected for lossy compression to be enabled'),
     (['-losms', '--lossyms'], False,'store_true','Use lossy compression for multiscales, this only matters if using jpegxl and it MUST be selected for lossy compression to be enabled'),
     #(['-lms', '--lossyMultiscale'], False,'store_true','Use lossy compression, only for multiscale data'),
-
-    # Features relevant for zarr_stores (https://github.com/CBI-PITT/zarr_stores)
-    (['-wdo', '--writeDirectOff'], False,'store_true','If selected, sharded stores from the zarr_stores package will write data as a NestedDirectoryStore before consolodating to sharded after completion'),
     ]
 
 for var,v_type,nargs,v_help in positional:

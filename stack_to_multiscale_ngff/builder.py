@@ -10,8 +10,8 @@ import dask
 from dask.delayed import delayed
 
 import numcodecs
-import zarr.storage
 from numcodecs import Blosc
+from zarr.codecs import BloscCodec
 try:
     from imagecodecs.numcodecs import JpegXl as Jpegxl
     numcodecs.register_codec(Jpegxl)
@@ -34,12 +34,6 @@ except:
 
 # Import the main class that orchestrates building the multiscale ome-zarr
 from stack_to_multiscale_ngff._builder_init import builder
-
-# Import custom zarr store types
-# from stack_to_multiscale_ngff.archived_nested_store import Archived_Nested_Store
-from zarr_stores.archived_nested_store import Archived_Nested_Store
-# from stack_to_multiscale_ngff.h5_nested_store4 import H5_Nested_Store
-from zarr_stores.h5_nested_store import H5_Nested_Store
 
 # Import local functions
 from stack_to_multiscale_ngff.arg_parser import parser
@@ -73,12 +67,15 @@ if __name__ == '__main__':
     tmp_dir = tmp_dir[0] if tmp_dir is not None else os.path.join(os.getcwd(),'tmp_dask')
     fileType = args.fileType[0]
     scale = args.scale
-    verify_zarr_write = args.verify_zarr_write
     skip = args.skip
     buildTmpCopyDestination = args.buildTmpCopyDestination
     downSampleType = args.downSampleType[0]
-    writeDirect = False if args.writeDirectOff else True
+    zarrFormat = args.zarrFormat[0]
+    shardShape = args.shardShape
     assert downSampleType in ['mean','max'], 'Only local mean and local max downsampling is available'
+    assert zarrFormat in (0.4, 0.5, 0.6), 'zarrFormat must be 0.4, 0.5 or 0.6'
+    # NGFF 0.4 is stored as zarr v2; NGFF 0.5 and 0.6 are stored as zarr v3
+    zarr_storage_format = 2 if zarrFormat == 0.4 else 3
 
     ## Below will enable inputs for information included in .zattrs omero metadata
     #Nothing is required and when left bank will be generated automatically based on the data being converted
@@ -142,46 +139,56 @@ if __name__ == '__main__':
     omero['rdefs'] = {}
     omero['rdefs']['defaultZ'] = defaultZ
 
-    compressor = None
-    if args.compression[0].lower() == '':
-        pass
-    elif args.compression[0].lower() == 'zstd':
-        assert args.clevel[0] >= 0 and args.clevel[0] <= 9, 'Compression Level must be between 0-9 for zstd'
-        compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
-    elif args.compression[0].lower() == 'jpegxl':
-        if args.lossy:
-            assert args.clevel[0] >= 50 and args.clevel[0] <= 100, 'Compression Level must be between 50-100 for lossy jpegxl'
-            compressor = Jpegxl(level=args.clevel[0], lossless=False)
+    if zarr_storage_format == 3:
+        # Sharded zarr v3 output (NGFF 0.5 and 0.6) uses zarr.codecs. JPEG XL
+        # is not available as a zarr v3 codec: use zstd for v3 output.
+        assert args.compression[0].lower() in ('', 'zstd'), \
+            "Compression method '{}' is not supported for zarr v3 output: use zstd".format(args.compression[0])
+        compressor = None
+        if args.compression[0].lower() == 'zstd':
+            assert args.clevel[0] >= 0 and args.clevel[0] <= 9, 'Compression Level must be between 0-9 for zstd'
+            compressor = BloscCodec(cname='zstd', clevel=args.clevel[0], shuffle='bitshuffle')
+
+        assert args.compressionms[0].lower() in ('', 'zstd'), \
+            "Compression method '{}' is not supported for zarr v3 output: use zstd".format(args.compressionms[0])
+        if args.compressionms[0].lower() == '':
+            multi_scale_compressor = compressor
         else:
-            compressor = Jpegxl(lossless=True)
-
-    multi_scale_compressor = None
-    if args.compressionms[0].lower() == '':
-        multi_scale_compressor = compressor
-    elif args.compressionms[0].lower() == 'zstd':
-        assert args.clevelms[0] >= 0 and args.clevelms[0] <= 9, 'Compression Level must be between 0-9 for zstd'
-        multi_scale_compressor = Blosc(cname='zstd', clevel=args.clevelms[0], shuffle=Blosc.BITSHUFFLE)
-    elif args.compressionms[0].lower() == 'jpegxl':
-        if args.lossyms:
-            assert args.clevelms[0] >= 50 and args.clevelms[0] <= 100, 'Compression Level must be between 50-100 for lossy jpegxl'
-            multi_scale_compressor = Jpegxl(level=args.clevelms[0], lossless=False)
-        else:
-            multi_scale_compressor = Jpegxl(lossless=True)
-
-
-    if out_location.lower().endswith('.ome.zarr'):
-        zarr_store_type = zarr.storage.NestedDirectoryStore
-    elif out_location.lower().endswith('.omehans'):
-        zarr_store_type = H5_Nested_Store
+            assert args.clevelms[0] >= 0 and args.clevelms[0] <= 9, 'Compression Level must be between 0-9 for zstd'
+            multi_scale_compressor = BloscCodec(cname='zstd', clevel=args.clevelms[0], shuffle='bitshuffle')
     else:
-        zarr_store_type = zarr.storage.NestedDirectoryStore
+        # Chunked zarr v2 output (NGFF 0.4) uses numcodecs
+        compressor = None
+        if args.compression[0].lower() == '':
+            pass
+        elif args.compression[0].lower() == 'zstd':
+            assert args.clevel[0] >= 0 and args.clevel[0] <= 9, 'Compression Level must be between 0-9 for zstd'
+            compressor = Blosc(cname='zstd', clevel=args.clevel[0], shuffle=Blosc.BITSHUFFLE)
+        elif args.compression[0].lower() == 'jpegxl':
+            if args.lossy:
+                assert args.clevel[0] >= 50 and args.clevel[0] <= 100, 'Compression Level must be between 50-100 for lossy jpegxl'
+                compressor = Jpegxl(level=args.clevel[0], lossless=False)
+            else:
+                compressor = Jpegxl(lossless=True)
+
+        if args.compressionms[0].lower() == '':
+            multi_scale_compressor = compressor
+        elif args.compressionms[0].lower() == 'zstd':
+            assert args.clevelms[0] >= 0 and args.clevelms[0] <= 9, 'Compression Level must be between 0-9 for zstd'
+            multi_scale_compressor = Blosc(cname='zstd', clevel=args.clevelms[0], shuffle=Blosc.BITSHUFFLE)
+        elif args.compressionms[0].lower() == 'jpegxl':
+            if args.lossyms:
+                assert args.clevelms[0] >= 50 and args.clevelms[0] <= 100, 'Compression Level must be between 50-100 for lossy jpegxl'
+                multi_scale_compressor = Jpegxl(level=args.clevelms[0], lossless=False)
+            else:
+                multi_scale_compressor = Jpegxl(lossless=True)
 
     #Initialize builder class
     mr = builder(in_location, out_location, fileType=fileType,
             geometry=scale,origionalChunkSize=origionalChunkSize, finalChunkSize=finalChunkSize,
             cpu_cores=cpu, mem=mem, tmp_dir=tmp_dir,verbose=verbose,compressor=compressor,
-            zarr_store_type=zarr_store_type, writeDirect=writeDirect,
-            verify_zarr_write=verify_zarr_write, omero_dict=omero,
+            ngff_version=zarrFormat, shard_shape=shardShape,
+            omero_dict=omero,
                  skip=skip, downSampType=downSampleType, directToFinalChunks=args.directToFinalChunks,
                  buildTmpCopyDestination=buildTmpCopyDestination,
                  multi_scale_compressor=multi_scale_compressor)
@@ -209,9 +216,9 @@ if __name__ == '__main__':
 
                 mr.write_resolution_series()
 
-            if not writeDirect and (mr.zarr_store_type == Archived_Nested_Store or mr.zarr_store_type == H5_Nested_Store):
-                for r in reversed(list(range(len(mr.pyramidMap)))):
-                    mr.get_store(r).consolidate()
+                # Publish OME-Zarr metadata only after all levels finish
+                # writing so aborted output is not advertised as complete
+                mr.publish_metadata()
 
 
 
